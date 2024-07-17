@@ -198,7 +198,6 @@ class AnatLinear(Pipeline):
                 (get_ids, write_node, [("substitutions", "substitutions")]),
                 (self.output_node, write_node, [("image_id", "@image_id")]),
                 (self.output_node, write_node, [("outfile_reg", "@outfile_reg")]),
-                (self.output_node, write_node, [("affine_mat", "@affine_mat")]),
             ]
         )
 
@@ -244,14 +243,34 @@ class AnatLinear(Pipeline):
 
         # 2. `RegistrationSynQuick` by *ANTS*. It uses nipype interface.
         ants_registration_node = npe.Node(
-            name="antsRegistrationSynQuick", interface=ants.RegistrationSynQuick()
+            name="antsRegistration", interface=ants.Registration()
         )
         ants_registration_node.inputs.fixed_image = self.ref_template
-        ants_registration_node.inputs.transform_type = "a"
+        ants_registration_node.inputs.interpolation = "Linear"
         ants_registration_node.inputs.dimension = 3
-
-        if random_seed := self.parameters.get("random_seed", None):
-            ants_registration_node.inputs.random_seed = random_seed
+        ants_registration_node.inputs.winsorize_lower_quantile = 0.005
+        ants_registration_node.inputs.winsorize_upper_quantile = 0.995
+        ants_registration_node.inputs.transforms = ["Rigid", "Affine", "SyN"]
+        ants_registration_node.inputs.transform_parameters = [
+            (0.1,),
+            (0.1,),
+            (0.1, 3, 0),
+        ]
+        ants_registration_node.inputs.metric = ["MI"] * 3
+        ants_registration_node.inputs.metric_weight = [1] * 3
+        ants_registration_node.inputs.radius_or_number_of_bins = [32] * 3
+        ants_registration_node.inputs.sampling_strategy = ["Regular", "Regular", None]
+        ants_registration_node.inputs.sampling_percentage = [0.25, 0.25, None]
+        ants_registration_node.inputs.number_of_iterations = [
+            [1000, 500, 250, 0],
+            [1000, 500, 250, 0],
+            [100, 70, 50, 0],
+        ]
+        ants_registration_node.inputs.convergence_threshold = [1.0e-7] * 3
+        ants_registration_node.inputs.convergence_window_size = [10] * 3
+        ants_registration_node.inputs.smoothing_sigmas = [[3, 2, 1, 0]] * 3
+        ants_registration_node.inputs.sigma_units = ["vox"] * 3
+        ants_registration_node.inputs.shrink_factors = [[8, 4, 2, 1]] * 3
 
         # 3. Crop image (using nifti). It uses custom interface, from utils file
 
@@ -284,15 +303,10 @@ class AnatLinear(Pipeline):
                 (
                     image_id_node,
                     ants_registration_node,
-                    [("image_id", "output_prefix")],
+                    [("image_id", "output_transform_prefix")],
                 ),
                 # Connect to DataSink
                 (image_id_node, self.output_node, [("image_id", "image_id")]),
-                (
-                    ants_registration_node,
-                    self.output_node,
-                    [("out_matrix", "affine_mat")],
-                ),
                 (
                     ants_registration_node,
                     self.output_node,
