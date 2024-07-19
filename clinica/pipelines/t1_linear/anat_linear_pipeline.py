@@ -266,11 +266,14 @@ class AnatLinear(Pipeline):
             [1000, 500, 250, 0],
             [100, 70, 50, 0],
         ]
-        ants_registration_node.inputs.convergence_threshold = [1.0e-7] * 3
+        ants_registration_node.inputs.convergence_threshold = [1.0e-6] * 3
         ants_registration_node.inputs.convergence_window_size = [10] * 3
         ants_registration_node.inputs.smoothing_sigmas = [[3, 2, 1, 0]] * 3
         ants_registration_node.inputs.sigma_units = ["vox"] * 3
         ants_registration_node.inputs.shrink_factors = [[8, 4, 2, 1]] * 3
+        ants_registration_node.inputs.use_histogram_matching = False
+        ants_registration_node.inputs.output_warped_image = True
+        ants_registration_node.inputs.random_seed = 0
 
         # 3. Crop image (using nifti). It uses custom interface, from utils file
 
