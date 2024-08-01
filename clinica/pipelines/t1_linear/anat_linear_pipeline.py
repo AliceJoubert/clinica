@@ -250,30 +250,30 @@ class AnatLinear(Pipeline):
         ants_registration_node.inputs.dimension = 3
         ants_registration_node.inputs.winsorize_lower_quantile = 0.005
         ants_registration_node.inputs.winsorize_upper_quantile = 0.995
-        ants_registration_node.inputs.transforms = ["Rigid", "Affine", "SyN"]
+        ants_registration_node.inputs.transforms = ["Rigid", "Affine"]
         ants_registration_node.inputs.transform_parameters = [
             (0.1,),
             (0.1,),
-            (0.1, 3, 0),
         ]
-        ants_registration_node.inputs.metric = ["MI"] * 3
-        ants_registration_node.inputs.metric_weight = [1] * 3
-        ants_registration_node.inputs.radius_or_number_of_bins = [32] * 3
-        ants_registration_node.inputs.sampling_strategy = ["Regular", "Regular", None]
-        ants_registration_node.inputs.sampling_percentage = [0.25, 0.25, None]
+        ants_registration_node.inputs.metric = ["MI"] * 2
+        ants_registration_node.inputs.metric_weight = [1] * 2
+        ants_registration_node.inputs.radius_or_number_of_bins = [32] * 2
+        ants_registration_node.inputs.sampling_strategy = ["Regular", "Regular"]
+        ants_registration_node.inputs.sampling_percentage = [0.25, 0.25]
         ants_registration_node.inputs.number_of_iterations = [
             [1000, 500, 250, 0],
             [1000, 500, 250, 0],
-            [100, 70, 50, 0],
         ]
-        ants_registration_node.inputs.convergence_threshold = [1.0e-6] * 3
-        ants_registration_node.inputs.convergence_window_size = [10] * 3
-        ants_registration_node.inputs.smoothing_sigmas = [[3, 2, 1, 0]] * 3
-        ants_registration_node.inputs.sigma_units = ["vox"] * 3
-        ants_registration_node.inputs.shrink_factors = [[8, 4, 2, 1]] * 3
+        ants_registration_node.inputs.convergence_threshold = [1.0e-6] * 2
+        ants_registration_node.inputs.convergence_window_size = [10] * 2
+        ants_registration_node.inputs.smoothing_sigmas = [[3, 2, 1, 0]] * 2
+        ants_registration_node.inputs.sigma_units = ["vox"] * 2
+        ants_registration_node.inputs.shrink_factors = [[8, 4, 2, 1]] * 2
         ants_registration_node.inputs.use_histogram_matching = False
         ants_registration_node.inputs.output_warped_image = True
-        ants_registration_node.inputs.random_seed = 0
+
+        if random_seed := self.parameters.get("random_seed", None):
+            ants_registration_node.inputs.random_seed = random_seed
 
         # 3. Crop image (using nifti). It uses custom interface, from utils file
 
