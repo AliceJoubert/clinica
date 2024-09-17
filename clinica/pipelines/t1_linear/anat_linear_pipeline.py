@@ -261,8 +261,8 @@ class AnatLinear(Pipeline):
         ants_registration_node.inputs.sampling_strategy = ["Regular", "Regular"]
         ants_registration_node.inputs.sampling_percentage = [0.25, 0.25]
         ants_registration_node.inputs.number_of_iterations = [
-            [1000, 500, 250, 0],
-            [1000, 500, 250, 0],
+            [40, 0, 0, 0],
+            [20, 0, 0, 0],
         ]
         ants_registration_node.inputs.convergence_threshold = [1.0e-6] * 2
         ants_registration_node.inputs.convergence_window_size = [10] * 2
