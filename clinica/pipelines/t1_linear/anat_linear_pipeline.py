@@ -241,7 +241,7 @@ class AnatLinear(Pipeline):
         else:
             n4biascorrection.inputs.bspline_fitting_distance = 100
 
-        # 2. `RegistrationSynQuick` by *ANTS*. It uses nipype interface.
+        # 2. Modified registration - synquick reproduction
         ants_registration_node = npe.Node(
             name="antsRegistration", interface=ants.Registration()
         )
