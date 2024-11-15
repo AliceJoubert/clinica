@@ -213,7 +213,11 @@ class AnatLinear(Pipeline):
         import nipype.pipeline.engine as npe
         from nipype.interfaces import ants
 
-        from clinica.pipelines.tasks import crop_nifti_task, get_filename_no_ext_task
+        from clinica.pipelines.tasks import (
+            crop_nifti_task,
+            get_filename_no_ext_task,
+            get_rigid,
+        )
 
         from .anat_linear_utils import print_end_pipeline
 
@@ -224,6 +228,15 @@ class AnatLinear(Pipeline):
                 function=get_filename_no_ext_task,
             ),
             name="ImageID",
+        )
+
+        rigid_mat_node = npe.Node(
+            interface=nutil.Function(
+                input_names=["fname"],
+                output_names=["rigidmat"],
+                function=get_rigid,
+            ),
+            name="RigidMat",
         )
 
         # The core (processing) nodes
@@ -299,6 +312,16 @@ class AnatLinear(Pipeline):
                     n4biascorrection,
                     ants_registration_node,
                     [("output_image", "moving_image")],
+                ),
+                (
+                    image_id_node,
+                    rigid_mat_node,
+                    [("image_id", "fname")],
+                ),
+                (
+                    rigid_mat_node,
+                    ants_registration_node,
+                    [("rigidmat", "initial_moving_transform")],
                 ),
                 (
                     image_id_node,
