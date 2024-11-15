@@ -232,12 +232,13 @@ class AnatLinear(Pipeline):
 
         rigid_mat_node = npe.Node(
             interface=nutil.Function(
-                input_names=["fname"],
+                input_names=["fname", "capsr"],
                 output_names=["rigidmat"],
                 function=get_rigid,
             ),
             name="RigidMat",
         )
+        rigid_mat_node.inputs.capsr = self.parameters.get("caps_rigid")
 
         # The core (processing) nodes
         # =====================================
@@ -272,7 +273,7 @@ class AnatLinear(Pipeline):
         ants_registration_node.inputs.sampling_strategy = ["Regular"]
         ants_registration_node.inputs.sampling_percentage = [0.25]
         ants_registration_node.inputs.number_of_iterations = [
-            [2, 0, 0, 0],  # todo :40 ?
+            [20, 0, 0, 0],  # value ?
         ]
         ants_registration_node.inputs.convergence_threshold = [1.0e-6]
         ants_registration_node.inputs.convergence_window_size = [10]

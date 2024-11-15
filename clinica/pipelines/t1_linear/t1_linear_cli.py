@@ -20,6 +20,12 @@ pipeline_name = "t1-linear"
     is_flag=True,
     help="Do not crop the image with template (cropped image are suggested for using with DL models)",
 )
+@cli_param.option.option(
+    "-cr",
+    "--caps_rigid",
+    is_flag=False,
+    help="Give CAPSr to learn from rigid",
+)
 @cli_param.option.random_seed
 @cli_param.option_group.common_pipelines_options
 @cli_param.option.subjects_sessions_tsv
@@ -30,6 +36,7 @@ def cli(
     bids_directory: str,
     caps_directory: str,
     uncropped_image: bool = False,
+    caps_rigid: Optional[str] = None,
     random_seed: Optional[int] = None,
     subjects_sessions_tsv: Optional[str] = None,
     working_directory: Optional[str] = None,
@@ -48,6 +55,7 @@ def cli(
     parameters = {
         "uncropped_image": uncropped_image,
         "random_seed": random_seed,
+        "caps_rigid": caps_rigid,
     }
 
     # Most of the time, you will want to instantiate your pipeline with a
