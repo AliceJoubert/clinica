@@ -23,12 +23,16 @@ def get_rigid(fname: str) -> str:
     # ex : sub-ADNI002S0413_ses-M12_T1w.nii.gz
 
     CAPSr = Path("/Users/alice.joubert/clinicaQC/data/BE_method_evaluation/ADNI/CAPS_r")
-    pattern = f"{Path(fname).name.replace('_T1', '')}.*.mat"
+    pattern = f"{Path(fname).name.replace('_T1w', '')}.*.mat"
     possibilities = CAPSr.rglob("*.mat")
-    mat = [p for p in possibilities if re.search(pattern, p)]
+    mat = [p for p in possibilities if re.search(pattern, str(p))]
 
     if len(mat) == 1:
         mat = mat[0]
     else:
-        raise ValueError(f"Expected only one matrix, got : {mat}")
+        raise ValueError(
+            f"Expected only one matrix, got : {mat} with pattern {pattern}"
+        )
+    # todo : pénible si image pas traduite avant
+    print(mat)
     return str(mat)
