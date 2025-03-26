@@ -22,7 +22,7 @@ def get_rigid(fname: str, capsr: str) -> str:
     from pathlib import Path
 
     # ex : sub-ADNI002S0413_ses-M12_T1w.nii.gz
-    pattern = f"{Path(fname).name.replace('_T1w', '')}.*.mat"
+    pattern = f"{Path(fname).name.replace('_T1w', '')}_.*.mat"
     possibilities = Path(capsr).rglob("*.mat")
     mat = [p for p in possibilities if re.search(pattern, str(p))]
 
@@ -30,8 +30,8 @@ def get_rigid(fname: str, capsr: str) -> str:
         mat = mat[0]
     else:
         raise ValueError(
-            f"Expected only one matrix, got : {mat} with pattern {pattern}"
+                f"Expected only one matrix, got : {mat} with pattern {pattern} at {capsr}\n"
+                f"Possibilities : {list(possibilities)}"
         )
     # todo : pénible si image pas traduite avant
-    print(mat)
     return str(mat)
