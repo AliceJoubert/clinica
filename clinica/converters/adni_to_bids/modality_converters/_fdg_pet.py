@@ -27,6 +27,9 @@ class ADNIPreprocessingStep(Enum):
     STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"
 
 
+# todo : move to utils / add a constructor depending on modality (condition on FDG and step)
+
+
 def _convert_fdg_pet(
     source_dir: Path,
     csv_dir: Path,
