@@ -26,25 +26,6 @@ class ADNIPreprocessingStep(Enum):
     STEP4_8MM = "Coreg, Avg, Std Img and Vox Siz, Uniform Resolution"
     STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"
 
-    @classmethod
-    def from_step_value(cls, step_value: int):
-        """Accept step specification in raw integer (0, 1, ..., 5)."""
-        error_msg = (
-            f"Step value {step_value} is not a valid ADNI preprocessing step value."
-            f"Valid values are {list(ADNIPreprocessingStep)}."
-        )
-        try:
-            step_value = int(step_value)
-        except Exception:
-            raise ValueError(error_msg)
-        if 0 <= step_value <= 5:
-            if step_value == 4:
-                return cls.STEP4_8MM
-            if step_value == 5:
-                return cls.STEP4_6MM
-            return cls[f"STEP{step_value}"]
-        raise ValueError(error_msg)
-
 
 def _convert_fdg_pet(
     source_dir: Path,

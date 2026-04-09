@@ -20,40 +20,6 @@ def assert_frame_equal(
         )
 
 
-@pytest.mark.parametrize(
-    "step_value,expected",
-    [(2, ADNIModalityConverter.PET_FDG), (4, ADNIModalityConverter.PET_FDG_UNIFORM)],
-)
-def test_get_modality_from_adni_preprocessing_step(step_value, expected):
-    from clinica.converters.adni_to_bids.modality_converters._fdg_pet import (
-        ADNIPreprocessingStep,
-        _get_modality_from_adni_preprocessing_step,
-    )
-
-    assert (
-        _get_modality_from_adni_preprocessing_step(
-            ADNIPreprocessingStep.from_step_value(step_value)
-        )
-        == expected
-    )
-
-
-@pytest.mark.parametrize("step_value", [0, 1, 3, 5])
-def test_get_modality_from_adni_preprocessing_step_error(step_value):
-    from clinica.converters.adni_to_bids.modality_converters._fdg_pet import (
-        ADNIPreprocessingStep,
-        _get_modality_from_adni_preprocessing_step,
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="The ADNI preprocessing step",
-    ):
-        _get_modality_from_adni_preprocessing_step(
-            ADNIPreprocessingStep.from_step_value(step_value)
-        )
-
-
 @pytest.fixture
 def input_df():
     return pd.DataFrame(
@@ -140,7 +106,7 @@ def test_compute_fdg_pet_paths_empty(tmp_path, expected_images_df_columns: list[
     )
 
     images = _compute_fdg_pet_paths(
-        tmp_path, tmp_path, [], tmp_path, ADNIPreprocessingStep.from_step_value(2)
+        tmp_path, tmp_path, [], tmp_path, ADNIPreprocessingStep.STEP2
     )
 
     assert len(images) == 0
@@ -166,7 +132,7 @@ def test_compute_fdg_pet_paths_column_errors(tmp_path):
             csv_dir,
             ["sub-01"],
             tmp_path,
-            ADNIPreprocessingStep.from_step_value(2),
+            ADNIPreprocessingStep.STEP2,
         )
 
 
@@ -323,11 +289,7 @@ def test_compute_fdg_pet_paths(tmp_path, expected_images_df_columns: list[str]):
     ).to_csv(csv_dir / "PET_META_LIST.csv")
 
     images = _compute_fdg_pet_paths(
-        tmp_path,
-        csv_dir,
-        ["123_S_0001"],
-        tmp_path,
-        ADNIPreprocessingStep.from_step_value(2),
+        tmp_path, csv_dir, ["123_S_0001"], tmp_path, ADNIPreprocessingStep.STEP2
     )
 
     assert len(images) == 0
