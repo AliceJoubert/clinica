@@ -2,6 +2,7 @@ from enum import Enum
 
 import pandas as pd
 
+from clinica.converters.adni_to_bids._utils import ADNIModalityConverter
 from clinica.utils.stream import cprint
 
 __all__ = [
@@ -12,7 +13,7 @@ __all__ = [
 ]
 
 
-class ADNITracer(str, Enum):  # todo : useful ?
+class ADNITracer(str, Enum):
     AV45 = "AV45"
     FBB = "FBB"
     PIB = "PIB"
@@ -31,15 +32,14 @@ class ADNIPETPreprocessingStep(Enum):
     STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"
 
     @classmethod
-    def from_step_value(cls, step_value: int):  # todo : should the type be an int?
+    def from_step_value(cls, step_value: int):
         """Accept step specification in raw integer (0, 1, ..., 5)."""
         error_msg = (
             f"Step value {step_value} is not a valid ADNI preprocessing step value."
-            f"Valid values are {list(ADNIPETPreprocessingStep)}."
+            f"Valid values are : \n"
+            f"{"\n".join([f"{step.index} : {step}" for step in list(ADNIPETPreprocessingStep)])}."
         )
-        try:
-            step_value = int(step_value)  # todo : change this, check the tests
-        except Exception:
+        if step_value != int(step_value):
             raise ValueError(error_msg)
         if 0 <= step_value <= 5:
             if step_value == 4:
@@ -50,19 +50,30 @@ class ADNIPETPreprocessingStep(Enum):
         raise ValueError(error_msg)
 
 
-# todo : add to CLI + DOC about how you plan on using it
-# (only one integer possible, default 2 ?)
-# for all modalities ?
-
-
 def define_pet_processing_step_with_tracer(
     tracer: ADNITracer, step: ADNIPETPreprocessingStep
 ) -> str:
     if step == ADNIPETPreprocessingStep.STEP0:
-        return f"{step} {tracer}"
+        return f"{step.value} {tracer.value}"
     if tracer == ADNITracer.FDG:
         return step.value
-    return f"{tracer} {step}"
+    return f"{tracer.value} {step.value}"
+
+
+def _get_modality_from_adni_preprocessing_step(
+    tracer: ADNITracer,
+    step: ADNIPETPreprocessingStep,
+) -> ADNIModalityConverter:
+    if tracer == ADNITracer.FDG:
+        if step == ADNIPETPreprocessingStep.STEP2:
+            return ADNIModalityConverter.PET_FDG
+        if step == ADNIPETPreprocessingStep.STEP4_8MM:
+            return ADNIModalityConverter.PET_FDG_UNIFORM
+    raise ValueError(
+        f"The ADNI preprocessing step {step} is not (yet) supported by the converter for PET tracer {tracer}."
+        f"The converter only supports {ADNIPETPreprocessingStep.STEP2} and "
+        f"{ADNIPETPreprocessingStep.STEP4_8MM} for now."
+    )
 
 
 def get_images_pet(

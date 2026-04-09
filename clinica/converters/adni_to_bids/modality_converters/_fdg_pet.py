@@ -1,14 +1,11 @@
 """Module for converting FDG PET of ADNI."""
 
-from enum import Enum
 from functools import partial
 from os import PathLike
 from pathlib import Path
 from typing import Iterable, List, Set, Tuple
 
 import pandas as pd
-
-from .._utils import ADNIModalityConverter
 
 __all__ = [
     "convert_fdg_pet",
@@ -18,6 +15,7 @@ __all__ = [
 from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
     ADNIPETPreprocessingStep,
     ADNITracer,
+    _get_modality_from_adni_preprocessing_step,
 )
 
 
@@ -84,20 +82,6 @@ def _convert_fdg_pet(
         n_procs=n_procs,
     )
     cprint(msg="FDG PET conversion done.", lvl="debug")
-
-
-def _get_modality_from_adni_preprocessing_step(
-    step: ADNIPETPreprocessingStep,
-) -> ADNIModalityConverter:
-    if step == ADNIPETPreprocessingStep.STEP2:
-        return ADNIModalityConverter.PET_FDG
-    if step == ADNIPETPreprocessingStep.STEP4_8MM:
-        return ADNIModalityConverter.PET_FDG_UNIFORM
-    raise ValueError(
-        f"The ADNI preprocessing step {step} is not (yet) supported by the converter."
-        f"The converter only supports {ADNIPETPreprocessingStep.STEP2} and "
-        f"{ADNIPETPreprocessingStep.STEP4_8MM} for now."
-    )
 
 
 convert_fdg_pet = partial(
