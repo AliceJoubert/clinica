@@ -172,10 +172,11 @@ def _compute_fdg_pet_paths(
 
     from ._image_path_utils import find_image_path
 
+    tracer = Tracer.FDG.value
     pet_fdg_df = _get_pet_fdg_df(csv_dir, subjects, preprocessing_step)
-    images = find_image_path(pet_fdg_df, source_dir, "FDG")
+    images = find_image_path(pet_fdg_df, source_dir, tracer)
     images.to_csv(
-        conversion_dir / f"{Tracer.FDG.value}_pet_paths.tsv",
+        conversion_dir / f"{tracer}_pet_paths.tsv",
         sep="\t",
         index=False,
     )

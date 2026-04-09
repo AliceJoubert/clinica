@@ -139,9 +139,11 @@ def _compute_pib_pet_paths(
             )
         ]
         pet_pib_df.drop(error_ind, inplace=True)
-    images = find_image_path(pet_pib_df, source_dir, modality="PIB")
+
+    tracer = Tracer.PIB.value
+    images = find_image_path(pet_pib_df, source_dir, modality=tracer)
     images.to_csv(
-        conversion_dir / f"{Tracer.PIB.value}_pet_paths.tsv",
+        conversion_dir / f"{tracer}_pet_paths.tsv",
         sep="\t",
         index=False,
     )

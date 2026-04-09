@@ -150,7 +150,8 @@ def _compute_tau_pet_paths(
         pet_tau_df.drop(error_ind, inplace=True)
 
     # Checking for images paths in filesystem
-    images = find_image_path(pet_tau_df, source_dir, "TAU")
+    tracer = Tracer.AV1451.value
+    images = find_image_path(pet_tau_df, source_dir, tracer)
     images.to_csv(
         conversion_dir / f"{Tracer.AV1451.value}_pet_paths.tsv",
         sep="\t",
