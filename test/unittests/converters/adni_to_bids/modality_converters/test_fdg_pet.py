@@ -3,6 +3,9 @@ import pandas as pd
 import pytest
 
 from clinica.converters.adni_to_bids._utils import ADNIModalityConverter
+from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
+    ADNIPETPreprocessingStep,
+)
 
 
 def assert_frame_equal(
@@ -17,6 +20,38 @@ def assert_frame_equal(
             df1.reset_index(drop=True),
             df2.reset_index(drop=True),
             check_dtype=check_column_type,
+        )
+
+
+@pytest.mark.parametrize(
+    "step_value,expected",
+    [(2, ADNIModalityConverter.PET_FDG), (4, ADNIModalityConverter.PET_FDG_UNIFORM)],
+)
+def test_get_modality_from_adni_preprocessing_step(step_value, expected):
+    from clinica.converters.adni_to_bids.modality_converters._fdg_pet import (
+        _get_modality_from_adni_preprocessing_step,
+    )
+
+    assert (
+        _get_modality_from_adni_preprocessing_step(
+            ADNIPETPreprocessingStep.from_step_value(step_value)
+        )
+        == expected
+    )
+
+
+@pytest.mark.parametrize("step_value", [0, 1, 3, 5])
+def test_get_modality_from_adni_preprocessing_step_error(step_value):
+    from clinica.converters.adni_to_bids.modality_converters._fdg_pet import (
+        _get_modality_from_adni_preprocessing_step,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="The ADNI preprocessing step",
+    ):
+        _get_modality_from_adni_preprocessing_step(
+            ADNIPETPreprocessingStep.from_step_value(step_value)
         )
 
 
@@ -101,12 +136,11 @@ def test_compute_fdg_pet_paths_empty(tmp_path, expected_images_df_columns: list[
     columns when the provided list of subjects is empty.
     """
     from clinica.converters.adni_to_bids.modality_converters._fdg_pet import (
-        ADNIPreprocessingStep,
         _compute_fdg_pet_paths,
     )
 
     images = _compute_fdg_pet_paths(
-        tmp_path, tmp_path, [], tmp_path, ADNIPreprocessingStep.STEP2
+        tmp_path, tmp_path, [], tmp_path, ADNIPETPreprocessingStep.STEP2
     )
 
     assert len(images) == 0
@@ -115,7 +149,6 @@ def test_compute_fdg_pet_paths_empty(tmp_path, expected_images_df_columns: list[
 
 def test_compute_fdg_pet_paths_column_errors(tmp_path):
     from clinica.converters.adni_to_bids.modality_converters._fdg_pet import (
-        ADNIPreprocessingStep,
         _compute_fdg_pet_paths,
     )
 
@@ -132,7 +165,7 @@ def test_compute_fdg_pet_paths_column_errors(tmp_path):
             csv_dir,
             ["sub-01"],
             tmp_path,
-            ADNIPreprocessingStep.STEP2,
+            ADNIPETPreprocessingStep.STEP2,
         )
 
 
@@ -256,7 +289,6 @@ def test_build_pet_qc_all_studies_for_subject():
 
 def test_compute_fdg_pet_paths(tmp_path, expected_images_df_columns: list[str]):
     from clinica.converters.adni_to_bids.modality_converters._fdg_pet import (
-        ADNIPreprocessingStep,
         _compute_fdg_pet_paths,
     )
 
@@ -289,7 +321,7 @@ def test_compute_fdg_pet_paths(tmp_path, expected_images_df_columns: list[str]):
     ).to_csv(csv_dir / "PET_META_LIST.csv")
 
     images = _compute_fdg_pet_paths(
-        tmp_path, csv_dir, ["123_S_0001"], tmp_path, ADNIPreprocessingStep.STEP2
+        tmp_path, csv_dir, ["123_S_0001"], tmp_path, ADNIPETPreprocessingStep.STEP2
     )
 
     assert len(images) == 0

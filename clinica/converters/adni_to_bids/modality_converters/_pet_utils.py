@@ -1,8 +1,68 @@
+from enum import Enum
+
 import pandas as pd
 
 from clinica.utils.stream import cprint
 
-__all__ = ["get_images_pet"]
+__all__ = [
+    "get_images_pet",
+    "ADNIPETPreprocessingStep",
+    "ADNITracer",
+    "define_pet_processing_step_with_tracer",
+]
+
+
+class ADNITracer(str, Enum):  # todo : useful ?
+    AV45 = "AV45"
+    FBB = "FBB"
+    PIB = "PIB"
+    FDG = "FDG"
+    AV1451 = "AV1451"
+
+
+class ADNIPETPreprocessingStep(Enum):
+    """ADNI preprocessing steps."""
+
+    STEP0 = "ADNI Brain PET: Raw"
+    STEP1 = "Co-registered Dynamic"
+    STEP2 = "Co-registered, Averaged"
+    STEP3 = "Coreg, Avg, Standardized Image and Voxel Size"
+    STEP4_8MM = "Coreg, Avg, Std Img and Vox Siz, Uniform Resolution"
+    STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"
+
+    @classmethod
+    def from_step_value(cls, step_value: int):  # todo : should the type be an int?
+        """Accept step specification in raw integer (0, 1, ..., 5)."""
+        error_msg = (
+            f"Step value {step_value} is not a valid ADNI preprocessing step value."
+            f"Valid values are {list(ADNIPETPreprocessingStep)}."
+        )
+        try:
+            step_value = int(step_value)  # todo : change this, check the tests
+        except Exception:
+            raise ValueError(error_msg)
+        if 0 <= step_value <= 5:
+            if step_value == 4:
+                return cls.STEP4_8MM
+            if step_value == 5:
+                return cls.STEP4_6MM
+            return cls[f"STEP{step_value}"]
+        raise ValueError(error_msg)
+
+
+# todo : add to CLI + DOC about how you plan on using it
+# (only one integer possible, default 2 ?)
+# for all modalities ?
+
+
+def define_pet_processing_step_with_tracer(
+    tracer: ADNITracer, step: ADNIPETPreprocessingStep
+) -> str:
+    if step == ADNIPETPreprocessingStep.STEP0:
+        return f"{step} {tracer}"
+    if tracer == ADNITracer.FDG:
+        return step.value
+    return f"{tracer} {step}"
 
 
 def get_images_pet(

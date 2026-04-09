@@ -30,6 +30,48 @@ class ADNIStudy(str, Enum):
     ADNIGO = "ADNIGO"
 
 
+class ADNIModality(str, Enum):
+    """Possible modalities supported by the ADNI-to-BIDS converter.
+
+    These are the modalities exposed to the user. There is not a
+    one-to-one relationship with the modality converters. That is,
+    some modalities, like PET_AMYLOID, are associated with multiple
+    converters, while others are associated with only one converter.
+    For this reason, the ADNIModalityConverter enumeration exists,
+    and there is a mapping between a ADNIModality and an iterable of
+    ADNIModalityConverter variants.
+    """
+
+    T1 = "T1"
+    PET_FDG = "PET_FDG"
+    PET_AMYLOID = "PET_AMYLOID"
+    PET_TAU = "PET_TAU"
+    DWI = "DWI"
+    FLAIR = "FLAIR"
+    FMRI = "fMRI"
+    FMAP = "FMAP"
+
+
+class ADNIModalityConverter(str, Enum):
+    """Possible modality converters for ADNI.
+
+    These are not exposed to the user. However, there is a one-to-one
+    relationship with the modality converters. That is, each variant
+    has a corresponding converter.
+    """
+
+    T1 = "T1"
+    PET_FDG = "PET_FDG"
+    PET_FDG_UNIFORM = "PET_FDG_UNIFORM"
+    PET_PIB = "PET_PIB"
+    PET_AV45 = "PET_AV45"
+    PET_TAU = "PET_TAU"
+    DWI = "DWI"
+    FLAIR = "FLAIR"
+    FMRI = "fMRI"
+    FMAP = "FMAP"
+
+
 def _define_subjects_list(
     source_dir: Path,
     subjs_list_path: Optional[Path] = None,
@@ -83,48 +125,6 @@ def get_subjects_list(
     return _check_subjects_list(
         _define_subjects_list(source_dir, subjs_list_path), clinical_dir
     )
-
-
-class ADNIModality(str, Enum):
-    """Possible modalities supported by the ADNI-to-BIDS converter.
-
-    These are the modalities exposed to the user. There is not a
-    one-to-one relationship with the modality converters. That is,
-    some modalities, like PET_AMYLOID, are associated with multiple
-    converters, while others are associated with only one converter.
-    For this reason, the ADNIModalityConverter enumeration exists,
-    and there is a mapping between a ADNIModality and an iterable of
-    ADNIModalityConverter variants.
-    """
-
-    T1 = "T1"
-    PET_FDG = "PET_FDG"
-    PET_AMYLOID = "PET_AMYLOID"
-    PET_TAU = "PET_TAU"
-    DWI = "DWI"
-    FLAIR = "FLAIR"
-    FMRI = "fMRI"
-    FMAP = "FMAP"
-
-
-class ADNIModalityConverter(str, Enum):
-    """Possible modality converters for ADNI.
-
-    These are not exposed to the user. However, there is a one-to-one
-    relationship with the modality converters. That is, each variant
-    has a corresponding converter.
-    """
-
-    T1 = "T1"
-    PET_FDG = "PET_FDG"
-    PET_FDG_UNIFORM = "PET_FDG_UNIFORM"
-    PET_PIB = "PET_PIB"
-    PET_AV45 = "PET_AV45"
-    PET_TAU = "PET_TAU"
-    DWI = "DWI"
-    FLAIR = "FLAIR"
-    FMRI = "fMRI"
-    FMAP = "FMAP"
 
 
 def correct_diagnosis_sc_adni3(

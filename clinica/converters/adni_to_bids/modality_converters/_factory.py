@@ -33,6 +33,7 @@ def _get_converters_for_modality(
         return [ADNIModalityConverter.FMAP]
 
 
+# todo :look here
 def converter_factory(converter: ADNIModalityConverter) -> ConverterInterface:
     """Returns the converter associated with the provided ADNIModalityConverter variant."""
     if converter == ADNIModalityConverter.T1:
