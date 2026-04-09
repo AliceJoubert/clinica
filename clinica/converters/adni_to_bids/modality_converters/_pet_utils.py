@@ -37,7 +37,7 @@ class ADNIPETPreprocessingStep(Enum):
         error_msg = (
             f"Step value {step_value} is not a valid ADNI preprocessing step value."
             f"Valid values are : \n"
-            f"{"\n".join([f"{step.index} : {step}" for step in list(ADNIPETPreprocessingStep)])}."
+            f"{"\n".join([f"{list(ADNIPETPreprocessingStep).index(step)} : {step.value}" for step in list(ADNIPETPreprocessingStep)])}."
         )
         if step_value != int(step_value):
             raise ValueError(error_msg)
@@ -60,19 +60,21 @@ def define_pet_processing_step_with_tracer(
     return f"{tracer.value} {step.value}"
 
 
-def _get_modality_from_adni_preprocessing_step(
-    tracer: ADNITracer,
+def _check_modality_with_preprocessing_step(
+    modality: ADNIModalityConverter,
     step: ADNIPETPreprocessingStep,
 ) -> ADNIModalityConverter:
-    if tracer == ADNITracer.FDG:
+    if modality == ADNIModalityConverter.PET_FDG:
         if step == ADNIPETPreprocessingStep.STEP2:
             return ADNIModalityConverter.PET_FDG
         if step == ADNIPETPreprocessingStep.STEP4_8MM:
             return ADNIModalityConverter.PET_FDG_UNIFORM
+    if step == ADNIPETPreprocessingStep.STEP2:
+        return modality
     raise ValueError(
-        f"The ADNI preprocessing step {step} is not (yet) supported by the converter for PET tracer {tracer}."
+        f"The ADNI preprocessing step {step} is not (yet) supported by the converter for PET tracer {modality}."
         f"The converter only supports {ADNIPETPreprocessingStep.STEP2} and "
-        f"{ADNIPETPreprocessingStep.STEP4_8MM} for now."
+        f"{ADNIPETPreprocessingStep.STEP4_8MM} for now. Please contact us if you need something different."
     )
 
 

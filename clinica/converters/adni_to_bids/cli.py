@@ -4,6 +4,9 @@ import click
 
 from clinica import option
 from clinica.converters import cli_param
+from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
+    ADNIPETPreprocessingStep,
+)
 
 from ._utils import ADNIModality
 
@@ -36,6 +39,14 @@ from ._utils import ADNIModality
 @click.option(
     "-xml", "--xml_path", help="Path to the root directory containing the xml metadata."
 )
+@click.option(
+    "-pps",
+    "--pet_processing_step",
+    type=click.IntRange(0, 5),
+    help=f"[OPTIONAL] ADNI PET processing step for converted images : \n\n"
+    f"{"\n\n".join([f"{list(ADNIPETPreprocessingStep).index(step)} : {step.value}" for step in list(ADNIPETPreprocessingStep)])}. \n\n By default is set to 2.",
+    default=2,
+)
 @option.global_option_group
 @option.n_procs
 def cli(
@@ -46,6 +57,7 @@ def cli(
     subjects_list: Optional[str] = None,
     clinical_data_only: bool = False,
     force_new_extraction: bool = False,
+    pet_processing_step: Optional[int] = 2,
     modalities: Optional[Iterable[Union[str, ADNIModality]]] = None,
     n_procs: Optional[int] = None,
 ) -> None:
@@ -72,6 +84,9 @@ def cli(
         xml_path=xml_path,
         force_new_extraction=force_new_extraction,
         n_procs=n_procs,
+        pet_processing_step=ADNIPETPreprocessingStep.from_step_value(
+            pet_processing_step
+        ),
     )
 
 

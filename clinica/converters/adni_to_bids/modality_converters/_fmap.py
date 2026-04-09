@@ -24,6 +24,7 @@ def convert_fmap(
     subjects: Iterable[str],
     force_new_extraction: bool = False,
     n_procs: int = 1,
+    pet_processing_step: int = 2,
 ):
     """Convert field map images of ADNI into BIDS format.
 

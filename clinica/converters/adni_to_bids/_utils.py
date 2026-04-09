@@ -64,6 +64,7 @@ class ADNIModalityConverter(str, Enum):
     PET_FDG = "PET_FDG"
     PET_FDG_UNIFORM = "PET_FDG_UNIFORM"
     PET_PIB = "PET_PIB"
+    PET_FBB = "PET_FBB"  # todo :why ??? does it break something ? (should not)
     PET_AV45 = "PET_AV45"
     PET_TAU = "PET_TAU"
     DWI = "DWI"
@@ -954,13 +955,14 @@ def _get_output_path(modality: ADNIModalityConverter) -> str:
         ADNIModalityConverter.PET_PIB,
         ADNIModalityConverter.PET_AV45,
         ADNIModalityConverter.PET_TAU,
-    ):
+    ):  # todo : modify
         return "pet"
 
 
 def _get_output_filename(
     modality: ADNIModalityConverter, tracer: Optional[Tracer] = None
 ) -> str:
+    # todo : need to modify for new ones
     if modality == ADNIModalityConverter.T1:
         return "_T1w"
     if modality == ADNIModalityConverter.DWI:
@@ -1000,7 +1002,7 @@ def _should_be_centered(modality: ADNIModalityConverter) -> bool:
         ADNIModalityConverter.PET_PIB,
         ADNIModalityConverter.PET_AV45,
         ADNIModalityConverter.PET_TAU,
-    ):
+    ):  # todo : modify
         return True
 
 
@@ -1022,6 +1024,7 @@ def _write_json_sidecar(modality: ADNIModalityConverter) -> bool:
         ADNIModalityConverter.PET_AV45,
         ADNIModalityConverter.PET_TAU,
     ):
+        # todo : modify
         return False
 
 

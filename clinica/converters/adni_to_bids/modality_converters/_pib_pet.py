@@ -5,6 +5,10 @@ from typing import Iterable
 
 import pandas as pd
 
+from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
+    ADNIPETPreprocessingStep,
+)
+
 __all__ = ["convert_pib_pet"]
 
 
@@ -16,6 +20,7 @@ def convert_pib_pet(
     subjects: Iterable[str],
     force_new_extraction: bool = False,
     n_procs: int = 1,
+    pet_processing_step: ADNIPETPreprocessingStep = ADNIPETPreprocessingStep.STEP2,
 ):
     """Convert PIB PET images of ADNI into BIDS format.
 
@@ -45,6 +50,10 @@ def convert_pib_pet(
         If specified, it should be between 1 and the number of available CPUs.
         Default=1.
     """
+    from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
+        ADNITracer,
+        _check_modality_with_preprocessing_step,
+    )
     from clinica.utils.stream import cprint
 
     from .._utils import ADNIModalityConverter, paths_to_bids
@@ -56,19 +65,24 @@ def convert_pib_pet(
         ),
         lvl="info",
     )
-    images = _compute_pib_pet_paths(source_dir, csv_dir, subjects, conversion_dir)
+    images = _compute_pib_pet_paths(
+        source_dir, csv_dir, subjects, conversion_dir, pet_processing_step
+    )
     cprint(
         f"Paths of {ADNIModalityConverter.PET_PIB.value} images found. Exporting images into BIDS ...",
         lvl="info",
     )
+    modality = _check_modality_with_preprocessing_step(
+        ADNIModalityConverter.PET_PIB, pet_processing_step
+    )
     paths_to_bids(
         images,
         destination_dir,
-        ADNIModalityConverter.PET_PIB,
+        modality,
         force_new_extraction=force_new_extraction,
         n_procs=n_procs,
     )
-    cprint(msg=f"{ADNIModalityConverter.PET_PIB.value} conversion done.", lvl="debug")
+    cprint(msg=f"{modality.value} conversion done.", lvl="debug")
 
 
 def _compute_pib_pet_paths(
@@ -76,6 +90,7 @@ def _compute_pib_pet_paths(
     csv_dir: Path,
     subjects: Iterable[str],
     conversion_dir: Path,
+    pet_processing_step: ADNIPETPreprocessingStep = ADNIPETPreprocessingStep.STEP2,
 ) -> pd.DataFrame:
     """Compute the paths to the PIB PET images and store them in a TSV file.
 
@@ -102,7 +117,11 @@ def _compute_pib_pet_paths(
     from clinica.utils.pet import Tracer
 
     from ._image_path_utils import find_image_path
-    from ._pet_utils import get_images_pet
+    from ._pet_utils import (
+        ADNITracer,
+        define_pet_processing_step_with_tracer,
+        get_images_pet,
+    )
 
     pet_pib_dfs_list = []
     pet_pib_df = pd.DataFrame(columns=_get_pib_pet_columns())
@@ -122,7 +141,11 @@ def _compute_pib_pet_paths(
             subject_pet_meta=subject_pet_meta,
             df_cols=_get_pib_pet_columns(),
             modality="PIB-PET",
-            sequences_preprocessing_step=["PIB Co-registered, Averaged"],
+            sequences_preprocessing_step=[
+                define_pet_processing_step_with_tracer(
+                    ADNITracer.PIB, pet_processing_step
+                )
+            ],
             viscode_field="VISCODE",
         )
         if subj_dfs_list:
