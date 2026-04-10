@@ -5,6 +5,8 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
+from clinica.converters.adni_to_bids._utils import ADNIPETPreprocessingStep
+
 
 @pytest.fixture
 def suffix_directory_builder(
@@ -27,6 +29,27 @@ def suffix_directory_builder(
 
 def get_expected_path(tmp_path: Path, expected: Iterable[str]) -> set[Path]:
     return set([tmp_path / name for name in expected])
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (0, "ADNI Brain PET: Raw"),
+        (1, "Co-registered Dynamic"),
+        (2, "Co-registered, Averaged"),
+        (3, "Coreg, Avg, Standardized Image and Voxel Size"),
+        (4, "Coreg, Avg, Std Img and Vox Siz, Uniform Resolution"),
+        (5, "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"),
+    ],
+)
+def test_adni_preprocessing_step_from_value(value, expected):
+    assert expected == ADNIPETPreprocessingStep.from_step_value(value).value
+
+
+@pytest.mark.parametrize("value", [1.2, "truc"])
+def test_adni_preprocessing_step_from_value_error(value):
+    with pytest.raises(ValueError):
+        ADNIPETPreprocessingStep.from_step_value(value)
 
 
 @pytest.mark.parametrize(

@@ -1,8 +1,10 @@
 import pytest
 
-from clinica.converters.adni_to_bids._utils import ADNIModalityConverter
-from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
+from clinica.converters.adni_to_bids._utils import (
+    ADNIModalityConverter,
     ADNIPETPreprocessingStep,
+)
+from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
     ADNITracer,
 )
 
@@ -73,24 +75,3 @@ def test_get_modality_from_adni_preprocessing_step_unsupported_modality():
             ADNIModalityConverter.PET_PIB,
             ADNIPETPreprocessingStep.from_step_value(3),
         )
-
-
-@pytest.mark.parametrize(
-    "value, expected",
-    [
-        (0, "ADNI Brain PET: Raw"),
-        (1, "Co-registered Dynamic"),
-        (2, "Co-registered, Averaged"),
-        (3, "Coreg, Avg, Standardized Image and Voxel Size"),
-        (4, "Coreg, Avg, Std Img and Vox Siz, Uniform Resolution"),
-        (5, "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"),
-    ],
-)
-def test_adni_preprocessing_step_from_value(value, expected):
-    assert expected == ADNIPETPreprocessingStep.from_step_value(value).value
-
-
-@pytest.mark.parametrize("value", [1.2, "truc"])
-def test_adni_preprocessing_step_from_value_error(value):
-    with pytest.raises(ValueError):
-        ADNIPETPreprocessingStep.from_step_value(value)

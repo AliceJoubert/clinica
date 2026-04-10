@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
+from clinica.converters.adni_to_bids._utils import (
     ADNIPETPreprocessingStep,
 )
 
