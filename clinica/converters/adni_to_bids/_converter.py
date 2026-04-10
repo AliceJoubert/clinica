@@ -1,12 +1,11 @@
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
-from modality_converters._pet_utils import ADNIPETPreprocessingStep
-
 from clinica.converters.abstract_converter import Converter
 from clinica.utils.filemanip import UserProvidedPath
 
 from ._utils import ADNIModality
+from .modality_converters._pet_utils import ADNIPETPreprocessingStep
 
 __all__ = ["convert"]
 
