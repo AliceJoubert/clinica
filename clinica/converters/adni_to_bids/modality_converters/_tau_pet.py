@@ -8,11 +8,10 @@ import pandas as pd
 __all__ = ["convert_tau_pet"]
 
 from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
-    ADNIPETPreprocessingStep,
     ADNITracer,
 )
 
-from .._utils import ADNIModalityConverter
+from .._utils import ADNIPETPreprocessingStep
 
 
 def convert_tau_pet(

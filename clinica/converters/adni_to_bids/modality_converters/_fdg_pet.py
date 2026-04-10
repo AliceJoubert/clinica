@@ -12,11 +12,10 @@ __all__ = [
 ]
 
 from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
-    ADNIPETPreprocessingStep,
     ADNITracer,
 )
 
-from .._utils import ADNIModalityConverter
+from .._utils import ADNIModalityConverter, ADNIPETPreprocessingStep
 
 
 def convert_fdg_pet(

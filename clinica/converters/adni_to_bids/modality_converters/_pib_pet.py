@@ -5,7 +5,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
+from clinica.converters.adni_to_bids._utils import (
     ADNIPETPreprocessingStep,
 )
 
@@ -20,7 +20,7 @@ def convert_pib_pet(
     subjects: Iterable[str],
     force_new_extraction: bool = False,
     n_procs: int = 1,
-    pet_processing_step: ADNIPETPreprocessingStep = ADNIPETPreprocessingStep.STEP2,
+    pet_preprocessing_step: ADNIPETPreprocessingStep = ADNIPETPreprocessingStep.STEP2,
 ):
     """Convert PIB PET images of ADNI into BIDS format.
 
@@ -66,14 +66,14 @@ def convert_pib_pet(
         lvl="info",
     )
     images = _compute_pib_pet_paths(
-        source_dir, csv_dir, subjects, conversion_dir, pet_processing_step
+        source_dir, csv_dir, subjects, conversion_dir, pet_preprocessing_step
     )
     cprint(
         f"Paths of {ADNIModalityConverter.PET_PIB.value} images found. Exporting images into BIDS ...",
         lvl="info",
     )
     modality = _check_modality_with_preprocessing_step(
-        ADNIModalityConverter.PET_PIB, pet_processing_step
+        ADNIModalityConverter.PET_PIB, pet_preprocessing_step
     )
     paths_to_bids(
         images,

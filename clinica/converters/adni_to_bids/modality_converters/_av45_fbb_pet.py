@@ -6,11 +6,10 @@ from typing import Iterable
 import pandas as pd
 
 from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
-    ADNIPETPreprocessingStep,
     ADNITracer,
 )
 
-from .._utils import ADNIModalityConverter
+from .._utils import ADNIModalityConverter, ADNIPETPreprocessingStep
 
 __all__ = ["convert_av45_fbb_pet"]
 
@@ -23,7 +22,7 @@ def convert_av45_fbb_pet(
     subjects: Iterable[str],
     force_new_extraction: bool = False,
     n_procs: int = 1,
-    pet_processing_step: ADNIPETPreprocessingStep = ADNIPETPreprocessingStep.STEP2,
+    pet_preprocessing_step: ADNIPETPreprocessingStep = ADNIPETPreprocessingStep.STEP2,
 ):
     """Convert AV-45 and Florbetaben PET images of ADNI into BIDS format.
 
@@ -64,13 +63,13 @@ def convert_av45_fbb_pet(
         f"Calculating paths of AV45 and Florbetaben PET images. Output will be stored in {conversion_dir}."
     )
     images = _compute_av45_fbb_pet_paths(
-        source_dir, csv_dir, subjects, conversion_dir, pet_processing_step
+        source_dir, csv_dir, subjects, conversion_dir, pet_preprocessing_step
     )
     cprint(
         "Paths of AV45 and Florbetaben PET images found. Exporting images into BIDS ..."
     )
     modality = _check_modality_with_preprocessing_step(
-        ADNIModalityConverter.PET_AV45, pet_processing_step
+        ADNIModalityConverter.PET_AV45, pet_preprocessing_step
     )
     paths_to_bids(
         images,

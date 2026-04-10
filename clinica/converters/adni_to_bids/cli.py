@@ -4,11 +4,8 @@ import click
 
 from clinica import option
 from clinica.converters import cli_param
-from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
-    ADNIPETPreprocessingStep,
-)
 
-from ._utils import ADNIModality
+from ._utils import ADNIModality, ADNIPETPreprocessingStep
 
 
 @click.command(name="adni-to-bids")
@@ -57,7 +54,7 @@ def cli(
     subjects_list: Optional[str] = None,
     clinical_data_only: bool = False,
     force_new_extraction: bool = False,
-    pet_processing_step: Optional[int] = 2,
+    pet_preprocessing_step: Optional[int] = 2,
     modalities: Optional[Iterable[Union[str, ADNIModality]]] = None,
     n_procs: Optional[int] = None,
 ) -> None:
@@ -84,9 +81,7 @@ def cli(
         xml_path=xml_path,
         force_new_extraction=force_new_extraction,
         n_procs=n_procs,
-        pet_processing_step=ADNIPETPreprocessingStep.from_step_value(
-            pet_processing_step
-        ),
+        pet_preprocessing_step=pet_preprocessing_step,
     )
 
 

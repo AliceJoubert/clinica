@@ -4,8 +4,7 @@ from typing import Iterable, Optional, Union
 from clinica.converters.abstract_converter import Converter
 from clinica.utils.filemanip import UserProvidedPath
 
-from ._utils import ADNIModality
-from .modality_converters._pet_utils import ADNIPETPreprocessingStep
+from ._utils import ADNIModality, ADNIPETPreprocessingStep
 
 __all__ = ["convert"]
 
@@ -20,9 +19,7 @@ def convert(
     xml_path: Optional[UserProvidedPath] = None,
     force_new_extraction: bool = False,
     n_procs: Optional[int] = 1,
-    pet_processing_step: Optional[
-        ADNIPETPreprocessingStep
-    ] = ADNIPETPreprocessingStep.STEP2,
+    pet_preprocessing_step: Optional[int] = 2,
 ):
     from .._utils import validate_input_path
 
@@ -47,7 +44,9 @@ def convert(
             subjects=subjects,
             force_new_extraction=force_new_extraction,
             n_procs=n_procs,
-            pet_processing_step=pet_processing_step,
+            pet_preprocessing_step=ADNIPETPreprocessingStep.from_step_value(
+                pet_preprocessing_step
+            ),
         )
     adni_to_bids.convert_clinical_data(
         clinical_data_dir=path_to_clinical,
@@ -195,9 +194,7 @@ class AdniToBids(Converter):
         subjects: Optional[Path] = None,
         force_new_extraction: bool = False,
         n_procs: Optional[int] = 1,
-        pet_processing_step: Optional[
-            ADNIPETPreprocessingStep
-        ] = ADNIPETPreprocessingStep.STEP2,
+        pet_preprocessing_step: int = 2,
     ):
         """Convert the images of ADNI.
 
@@ -234,7 +231,7 @@ class AdniToBids(Converter):
                     subjects=subjects,
                     force_new_extraction=force_new_extraction,
                     n_procs=n_procs,
-                    pet_processing_step=pet_processing_step,
+                    pet_preprocessing_step=pet_preprocessing_step,
                 )
 
 

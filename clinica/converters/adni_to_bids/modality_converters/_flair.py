@@ -16,7 +16,7 @@ def convert_flair(
     subjects: Iterable[str],
     force_new_extraction: bool = False,
     n_procs: int = 1,
-    pet_processing_step: int = 2,
+    **kwargs,
 ):
     """Convert FLAIR images of ADNI into BIDS format.
 

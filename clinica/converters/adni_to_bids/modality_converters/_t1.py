@@ -16,7 +16,7 @@ def convert_t1(
     subjects: Iterable[str],
     force_new_extraction: bool = False,
     n_procs: int = 1,
-    pet_preprocessing_step: int = 2,
+    **kwargs,
 ):
     """Convert T1 MR images of ADNI into BIDS format.
 

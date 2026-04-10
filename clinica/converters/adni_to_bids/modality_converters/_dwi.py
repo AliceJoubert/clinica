@@ -16,7 +16,7 @@ def convert_dwi(
     subjects: Iterable[str],
     force_new_extraction: bool = False,
     n_procs: int = 1,
-    pet_processing_step: int = 2,
+    **kwargs,
 ):
     """Convert DW images of ADNI into BIDS format.
 

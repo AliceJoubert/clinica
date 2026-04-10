@@ -14,6 +14,7 @@ __all__ = [
     "ADNIModality",
     "ADNIModalityConverter",
     "ADNIStudy",
+    "ADNIPETPreprocessingStep",
     "correct_diagnosis_sc_adni3",
     "create_adni_sessions_dict",
     "create_adni_scans_files",
@@ -73,10 +74,39 @@ class ADNIModalityConverter(str, Enum):
     FMAP = "FMAP"
 
 
+class ADNIPETPreprocessingStep(Enum):
+    """ADNI preprocessing steps."""
+
+    STEP0 = "ADNI Brain PET: Raw"
+    STEP1 = "Co-registered Dynamic"
+    STEP2 = "Co-registered, Averaged"
+    STEP3 = "Coreg, Avg, Standardized Image and Voxel Size"
+    STEP4_8MM = "Coreg, Avg, Std Img and Vox Siz, Uniform Resolution"
+    STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"
+
+    @classmethod
+    def from_step_value(cls, step_value: int):
+        """Accept step specification in raw integer (0, 1, ..., 5)."""
+        error_msg = (
+            f"Step value {step_value} is not a valid ADNI preprocessing step value."
+            f"Valid values are : \n"
+            f"{"\n".join([f"{list(ADNIPETPreprocessingStep).index(step)} : {step.value}" for step in list(ADNIPETPreprocessingStep)])}."
+        )
+        if step_value != int(step_value):
+            raise ValueError(error_msg)
+        if 0 <= step_value <= 5:
+            if step_value == 4:
+                return cls.STEP4_8MM
+            if step_value == 5:
+                return cls.STEP4_6MM
+            return cls[f"STEP{step_value}"]
+        raise ValueError(error_msg)
+
+
 def _define_subjects_list(
     source_dir: Path,
     subjs_list_path: Optional[Path] = None,
-) -> List[str]:
+) -> list[str]:
     import re
 
     from clinica.utils.stream import cprint
@@ -91,9 +121,9 @@ def _define_subjects_list(
 
 
 def _check_subjects_list(
-    subjs_list: List[str],
+    subjs_list: list[str],
     clinical_dir: Path,
-) -> List[str]:
+) -> list[str]:
     from copy import copy
 
     from clinica.utils.stream import cprint
@@ -122,7 +152,7 @@ def get_subjects_list(
     source_dir: Path,
     clinical_dir: Path,
     subjs_list_path: Optional[Path] = None,
-) -> List[str]:
+) -> list[str]:
     return _check_subjects_list(
         _define_subjects_list(source_dir, subjs_list_path), clinical_dir
     )
@@ -636,7 +666,7 @@ def paths_to_bids(
     modality: ADNIModalityConverter,
     force_new_extraction: bool = False,
     n_procs: Optional[int] = 1,
-) -> List[Path]:
+) -> list[Path]:
     """Images in the list are converted and copied to directory in BIDS format.
 
     Parameters
