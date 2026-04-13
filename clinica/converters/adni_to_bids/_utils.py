@@ -88,10 +88,11 @@ class ADNIPETPreprocessingStep(Enum):
     def from_step_value(cls, step_value: int):
         """Accept step specification in raw integer (0, 1, ..., 5)."""
         newline = "\n"
+        lst = list(ADNIPETPreprocessingStep)
         error_msg = (
             f"Step value {step_value} is not a valid ADNI preprocessing step value."
             f"Valid values are : {newline}"
-            f"{newline.join([f"{list(ADNIPETPreprocessingStep).index(step)} : {step.value}" for step in list(ADNIPETPreprocessingStep)])}."
+            f"{newline.join([f"{lst.index(step)} : {step.value}" for step in lst])}."
         )
         if step_value != int(step_value):
             raise ValueError(error_msg)

@@ -205,6 +205,7 @@ class AdniToBids(Converter):
             subjects: Path to list of subjects to process
             modalities: modalities to convert (T1, PET_FDG, PET_AMYLOID, PET_TAU, DWI, FLAIR, fMRI)
             force_new_extraction: if given pre-existing images in the BIDS directory will be erased and extracted again.
+            pet_preprocessing_step: preprocessing step to search images with for all PET modalities
         """
         from clinica.utils.stream import cprint
 

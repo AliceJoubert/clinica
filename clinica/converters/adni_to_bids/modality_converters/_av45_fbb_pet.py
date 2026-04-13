@@ -51,6 +51,10 @@ def convert_av45_fbb_pet(
         The requested number of processes.
         If specified, it should be between 1 and the number of available CPUs.
         Default=1.
+
+    pet_preprocessing_step : ADNIPETPreprocessingStep, optional
+        ADNI PET Preprocessing Step to search PET scans with for all PET modalities
+        Default : ADNIPETPreprocessingStep.STEP2
     """
     from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
         _check_modality_with_preprocessing_step,
@@ -103,6 +107,10 @@ def _compute_av45_fbb_pet_paths(
 
     conversion_dir : Path
         The path to the TSV files including the paths to original images.
+
+    pet_preprocessing_step : ADNIPETPreprocessingStep, optional
+        ADNI PET Preprocessing Step to search PET scans with for all PET modalities
+        Default : ADNIPETPreprocessingStep.STEP2
 
     Returns
     -------
