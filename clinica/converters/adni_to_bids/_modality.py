@@ -43,7 +43,6 @@ class ADNIModalityConverter(str, Enum):
 
     T1 = "T1"
     PET_FDG = "PET_FDG"
-    PET_FDG_8UNIFORM = "PET_FDG_8UNIFORM"
     PET_PIB = "PET_PIB"
     PET_FBB = "PET_FBB"
     PET_AV45 = "PET_AV45"
@@ -57,7 +56,6 @@ class ADNIModalityConverter(str, Enum):
     def is_pet(self) -> bool:
         return self in (
             ADNIModalityConverter.PET_FDG,
-            ADNIModalityConverter.PET_FDG_8UNIFORM,
             ADNIModalityConverter.PET_PIB,
             ADNIModalityConverter.PET_AV45,
             ADNIModalityConverter.PET_TAU,
@@ -111,10 +109,7 @@ class ADNIModalityConverter(str, Enum):
 
     @property
     def tracer(self) -> Optional[Tracer]:
-        if (
-            self == ADNIModalityConverter.PET_FDG
-            or self == ADNIModalityConverter.PET_FDG_8UNIFORM
-        ):
+        if self == ADNIModalityConverter.PET_FDG:
             return Tracer.FDG
         if self == ADNIModalityConverter.PET_PIB:
             return Tracer.PIB
