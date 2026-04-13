@@ -65,7 +65,7 @@ class ADNIModalityConverter(str, Enum):
     PET_FDG = "PET_FDG"
     PET_FDG_UNIFORM = "PET_FDG_UNIFORM"
     PET_PIB = "PET_PIB"
-    PET_FBB = "PET_FBB"  # todo :why ??? does it break something ? (should not)
+    PET_FBB = "PET_FBB"
     PET_AV45 = "PET_AV45"
     PET_TAU = "PET_TAU"
     DWI = "DWI"
@@ -87,10 +87,11 @@ class ADNIPETPreprocessingStep(Enum):
     @classmethod
     def from_step_value(cls, step_value: int):
         """Accept step specification in raw integer (0, 1, ..., 5)."""
+        newline = "\n"
         error_msg = (
             f"Step value {step_value} is not a valid ADNI preprocessing step value."
-            f"Valid values are : \n"
-            f"{"\n".join([f"{list(ADNIPETPreprocessingStep).index(step)} : {step.value}" for step in list(ADNIPETPreprocessingStep)])}."
+            f"Valid values are : {newline}"
+            f"{newline.join([f"{list(ADNIPETPreprocessingStep).index(step)} : {step.value}" for step in list(ADNIPETPreprocessingStep)])}."
         )
         if step_value != int(step_value):
             raise ValueError(error_msg)

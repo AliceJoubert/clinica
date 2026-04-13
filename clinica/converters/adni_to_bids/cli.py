@@ -40,8 +40,7 @@ from ._utils import ADNIModality, ADNIPETPreprocessingStep
     "-pps",
     "--pet_processing_step",
     type=click.IntRange(0, 5),
-    help=f"[OPTIONAL] ADNI PET processing step for converted images : \n\n"
-    f"{"\n\n".join([f"{list(ADNIPETPreprocessingStep).index(step)} : {step.value}" for step in list(ADNIPETPreprocessingStep)])}. \n\n By default is set to 2.",
+    help=f"[OPTIONAL] ADNI PET processing step for converted images [0 to 5]. See possibilities in the documentation. Default : 2.",
     default=2,
 )
 @option.global_option_group
