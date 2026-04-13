@@ -5,7 +5,8 @@ from typing import Iterable
 
 import pandas as pd
 
-from clinica.converters.adni_to_bids._utils import (
+from clinica.converters.adni_to_bids._modality import (
+    ADNIModalityConverter,
     ADNIPETPreprocessingStep,
 )
 
@@ -59,7 +60,7 @@ def convert_pib_pet(
     )
     from clinica.utils.stream import cprint
 
-    from .._utils import ADNIModalityConverter, paths_to_bids
+    from .._utils import paths_to_bids
 
     cprint(
         (

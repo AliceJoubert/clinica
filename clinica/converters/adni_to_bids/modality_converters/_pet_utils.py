@@ -2,7 +2,7 @@ from enum import Enum
 
 import pandas as pd
 
-from clinica.converters.adni_to_bids._utils import (
+from clinica.converters.adni_to_bids._modality import (
     ADNIModalityConverter,
     ADNIPETPreprocessingStep,
 )

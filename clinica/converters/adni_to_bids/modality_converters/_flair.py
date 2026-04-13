@@ -48,7 +48,8 @@ def convert_flair(
     """
     from clinica.utils.stream import cprint
 
-    from .._utils import ADNIModalityConverter, paths_to_bids
+    from .._modality import ADNIModalityConverter
+    from .._utils import paths_to_bids
 
     cprint(
         f"Calculating paths of {ADNIModalityConverter.FLAIR} images. Output will be stored in {conversion_dir}.",

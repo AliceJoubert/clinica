@@ -5,7 +5,7 @@ import click
 from clinica import option
 from clinica.converters import cli_param
 
-from ._utils import ADNIModality, ADNIPETPreprocessingStep
+from ._modality import ADNIModality
 
 
 @click.command(name="adni-to-bids")

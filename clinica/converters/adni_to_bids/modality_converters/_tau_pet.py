@@ -11,7 +11,7 @@ from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
     ADNITracer,
 )
 
-from .._utils import ADNIPETPreprocessingStep
+from .._modality import ADNIModalityConverter, ADNIPETPreprocessingStep
 
 
 def convert_tau_pet(
@@ -61,7 +61,7 @@ def convert_tau_pet(
     )
     from clinica.utils.stream import cprint
 
-    from .._utils import ADNIModalityConverter, paths_to_bids
+    from .._utils import paths_to_bids
 
     cprint(
         (

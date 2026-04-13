@@ -5,6 +5,8 @@ from typing import Any, Iterable, Optional
 
 import pandas as pd
 
+from .._modality import ADNIModalityConverter
+
 __all__ = ["convert_t1"]
 
 
@@ -48,7 +50,7 @@ def convert_t1(
     """
     from clinica.utils.stream import cprint
 
-    from .._utils import ADNIModalityConverter, paths_to_bids
+    from .._utils import paths_to_bids
 
     cprint(
         (

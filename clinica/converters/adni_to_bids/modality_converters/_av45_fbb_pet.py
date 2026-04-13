@@ -9,7 +9,7 @@ from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
     ADNITracer,
 )
 
-from .._utils import ADNIModalityConverter, ADNIPETPreprocessingStep
+from .._modality import ADNIModalityConverter, ADNIPETPreprocessingStep
 
 __all__ = ["convert_av45_fbb_pet"]
 

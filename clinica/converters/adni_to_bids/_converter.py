@@ -4,7 +4,7 @@ from typing import Iterable, Optional, Union
 from clinica.converters.abstract_converter import Converter
 from clinica.utils.filemanip import UserProvidedPath
 
-from ._utils import ADNIModality, ADNIPETPreprocessingStep
+from ._modality import ADNIModality, ADNIPETPreprocessingStep
 
 __all__ = ["convert"]
 

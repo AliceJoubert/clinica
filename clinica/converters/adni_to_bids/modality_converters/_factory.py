@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Union
 
-from .._utils import ADNIModality, ADNIModalityConverter
+from .._modality import ADNIModality, ADNIModalityConverter
 
 __all__ = ["converter_factory", "modality_converter_factory"]
 
