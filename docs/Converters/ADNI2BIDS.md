@@ -93,16 +93,16 @@ Gradwarp, B1-inhomogeneity corrected and N3 bias field corrected images are sele
 - **DWI** We select images containing 'DTI' in the sequence name, that are not multiband, processed nor enhanced.
 - **FLAIR** We select images containing 'FLAIR' in the sequence name, without multiplanar reconstruction (MPR).
 - **fMRI** We select images containing 'MRI' in the sequence name, that are not multiband.
-- **FDG, Amyloid and Tau PET** By default, the images co-registered and averaged across time frames are selected.
+- **FDG, Amyloid and Tau PET** By default, the images _co-registered and averaged_ across time frames are selected.
 
-!!! warning "PET Preprocessing Step"
-    The default can be changed with option `-pps`, see below.
+!!! tip "PET Preprocessing Step"
+    The default processing for images can be changed with option `-pps`, see below.
 
 - **FMAP** We select images referring to Field Mapping in their sequence name.
 
 For all imaging modalities, the scans failing quality control (if it was performed) are discarded.
 
-As a final step in the conversion, images from some modalities are centered (currently, T1, FLAIR and the different PET tracers).
+As a final step in the conversion, images from some modalities are **centered** (currently, T1, FLAIR and the different PET tracers).
 For each image, the coordinates of the origin are set to the center of the box containing the image data.
 This allows other image processing pipelines in Clinica (mainly SPM based) to run without needing further image preprocessing.
 
@@ -187,6 +187,7 @@ Due to the high computational time required for converting all the modalities of
 - `FMAP` for Field Mapping
 ___
 `--pet_preprocessing_step` / `-pps` : this option allows to select the desired adni pet preprocessing step with is by default **2 / "Coregistered, Averaged"**. Options are :
+
 - 0 : ADNI Brain PET: Raw ;
 - 1 : Co-registered Dynamic ;
 - 2 : Co-registered, Averaged (default) ;
@@ -194,7 +195,7 @@ ___
 - 4 : Coreg, Avg, Std Img and Vox Siz, Uniform Resolution ;
 - 5 : Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res ;
 
-If applied, this option will account for all converted PET modalities. In case you want to use different steps, please run the converter several times with each time specified the modality and the corresponding step you want.
+If applied, this option will account for all converted PET modalities. In case you want to use different steps, please run the converter several times, with each time the modality and the corresponding step you want specified.
 ___
 
 It is also possible to provide the path to a .txt file with the list of subjects to convert using the optional parameter `--subjects_list`.
