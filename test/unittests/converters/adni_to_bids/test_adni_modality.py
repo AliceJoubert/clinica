@@ -8,7 +8,7 @@ from clinica.converters.adni_to_bids._modality import (
 
 @pytest.mark.parametrize(
     "modality",
-    ["PET_FDG", "PET_FDG_8UNIFORM", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB"],
+    ["PET_FDG", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB"],
 )
 def test_adni_modality_converter_is_pet_true(modality):
     assert ADNIModalityConverter[f"{modality}"].is_pet
@@ -28,7 +28,6 @@ def test_adni_modality_converter_is_pet_false(modality):
         ("FMRI", "func"),
         ("FMAP", "fmap"),
         ("PET_FDG", "pet"),
-        ("PET_FDG_8UNIFORM", "pet"),
         ("PET_PIB", "pet"),
         ("PET_AV45", "pet"),
         ("PET_TAU", "pet"),
@@ -40,7 +39,7 @@ def test_get_output_path(modality, expected):
 
 @pytest.mark.parametrize(
     "modality",
-    ["PET_FDG", "PET_FDG_8UNIFORM", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB", "T1"],
+    ["PET_FDG", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB", "T1"],
 )
 def test_write_json_sidecar_false(modality):
     assert not ADNIModalityConverter[f"{modality}"].json_sidecar
@@ -55,7 +54,6 @@ def test_write_json_sidecar_true(modality):
     "modality",
     [
         "PET_FDG",
-        "PET_FDG_8UNIFORM",
         "PET_PIB",
         "PET_AV45",
         "PET_TAU",
@@ -103,7 +101,6 @@ def test_adni_preprocessing_step_from_value_error(value):
         ("FMRI", "_task-rest_bold"),
         ("FMAP", "_fmap"),
         ("PET_FDG", "_trc-18FFDG_rec-coregavg_pet"),
-        ("PET_FDG_8UNIFORM", "_trc-18FFDG_rec-coregavg_pet"),
         ("PET_PIB", "_trc-11CPIB_rec-coregavg_pet"),
         ("PET_TAU", "_trc-18FAV1451_rec-coregavg_pet"),
     ],

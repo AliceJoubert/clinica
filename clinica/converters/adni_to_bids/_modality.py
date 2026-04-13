@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from clinica.utils.pet import ReconstructionMethod, Tracer
+from clinica.utils.pet import Tracer
 
 __all__ = [
     "ADNIModality",
