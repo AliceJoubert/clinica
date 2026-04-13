@@ -5,7 +5,10 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from clinica.converters.adni_to_bids._utils import ADNIPETPreprocessingStep
+from clinica.converters.adni_to_bids._utils import (
+    ADNIModalityConverter,
+    ADNIPETPreprocessingStep,
+)
 
 
 @pytest.fixture
@@ -29,6 +32,19 @@ def suffix_directory_builder(
 
 def get_expected_path(tmp_path: Path, expected: Iterable[str]) -> set[Path]:
     return set([tmp_path / name for name in expected])
+
+
+@pytest.mark.parametrize(
+    "modality",
+    ["PET_FDG", "PET_FDG_8UNIFORM", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB"],
+)
+def test_adni_modality_converter_is_pet_true(modality):
+    assert ADNIModalityConverter[f"{modality}"].is_pet()
+
+
+@pytest.mark.parametrize("modality", ["T1", "DWI", "FLAIR", "FMRI", "FMAP"])
+def test_adni_modality_converter_is_pet_false(modality):
+    assert not ADNIModalityConverter[f"{modality}"].is_pet()
 
 
 @pytest.mark.parametrize(
@@ -334,3 +350,92 @@ def test_remove_space_and_symbols(input_string, expected):
     from clinica.converters.adni_to_bids._utils import _remove_space_and_symbols
 
     assert _remove_space_and_symbols(input_string) == expected
+
+
+@pytest.mark.parametrize(
+    "modality, expected",
+    [
+        ("T1", "anat"),
+        ("DWI", "dwi"),
+        ("FLAIR", "anat"),
+        ("FMRI", "func"),
+        ("FMAP", "fmap"),
+        ("PET_FDG", "pet"),
+        ("PET_FDG_8UNIFORM", "pet"),
+        ("PET_PIB", "pet"),
+        ("PET_AV45", "pet"),
+        ("PET_TAU", "pet"),
+    ],
+)
+def test_get_output_path(modality, expected):
+    from clinica.converters.adni_to_bids._utils import _get_output_path
+
+    assert _get_output_path(ADNIModalityConverter[f"{modality}"]) == expected
+
+
+@pytest.mark.parametrize(
+    "modality",
+    [
+        "PET_FDG",
+        "PET_FDG_8UNIFORM",
+        "PET_PIB",
+        "PET_AV45",
+        "PET_TAU",
+        "PET_FBB",
+        "T1",
+        "FLAIR",
+    ],
+)
+def test_should_be_centered_true(modality):
+    from clinica.converters.adni_to_bids._utils import _should_be_centered
+
+    assert _should_be_centered(ADNIModalityConverter[f"{modality}"])
+
+
+@pytest.mark.parametrize("modality", ["DWI", "FMRI", "FMAP"])
+def test_should_be_centered_false(modality):
+    from clinica.converters.adni_to_bids._utils import _should_be_centered
+
+    assert not _should_be_centered(ADNIModalityConverter[f"{modality}"])
+
+
+@pytest.mark.parametrize(
+    "modality",
+    ["PET_FDG", "PET_FDG_8UNIFORM", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB", "T1"],
+)
+def test_write_json_sidecar_false(modality):
+    from clinica.converters.adni_to_bids._utils import _write_json_sidecar
+
+    assert not _write_json_sidecar(ADNIModalityConverter[f"{modality}"])
+
+
+@pytest.mark.parametrize("modality", ["DWI", "FMRI", "FMAP", "FLAIR"])
+def test_write_json_sidecar_true(modality):
+    from clinica.converters.adni_to_bids._utils import _write_json_sidecar
+
+    assert _write_json_sidecar(ADNIModalityConverter[f"{modality}"])
+
+
+@pytest.mark.parametrize(
+    "modality, expected",
+    [
+        ("T1", "_T1w"),
+        ("DWI", "_dwi"),
+        ("FLAIR", "_FLAIR"),
+        ("FMRI", "_task-rest_bold"),
+        ("FMAP", "_fmap"),
+        ("PET_FDG", "_trc-18FFDG_rec-coregavg_pet"),
+        ("PET_FDG_8UNIFORM", "_trc-18FFDG_rec-coregiso_pet"),
+        ("PET_PIB", "_trc-11CPIB_pet"),
+        ("PET_AV45", "_trc-18FAV45_pet"),
+        ("PET_TAU", "_trc-18FAV1451_pet"),
+    ],
+)
+def test_get_output_filename(modality, expected):
+    from clinica.converters.adni_to_bids._utils import _get_output_filename
+    from clinica.utils.pet import Tracer
+
+    assert (
+        _get_output_filename(ADNIModalityConverter[f"{modality}"], tracer=Tracer.AV45)
+        == expected
+    )

@@ -73,6 +73,16 @@ class ADNIModalityConverter(str, Enum):
     FMRI = "fMRI"
     FMAP = "FMAP"
 
+    def is_pet(self) -> bool:
+        return self in (
+            ADNIModalityConverter.PET_FDG,
+            ADNIModalityConverter.PET_FDG_8UNIFORM,
+            ADNIModalityConverter.PET_PIB,
+            ADNIModalityConverter.PET_AV45,
+            ADNIModalityConverter.PET_TAU,
+            ADNIModalityConverter.PET_FBB,
+        )
+
 
 class ADNIPETPreprocessingStep(Enum):
     """ADNI preprocessing steps."""
@@ -81,8 +91,8 @@ class ADNIPETPreprocessingStep(Enum):
     STEP1 = "Co-registered Dynamic"
     STEP2 = "Co-registered, Averaged"
     STEP3 = "Coreg, Avg, Standardized Image and Voxel Size"
-    STEP4_8MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 8mm Resolution"
-    STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Resolution"
+    STEP4_8MM = "Coreg, Avg, Std Img and Vox Siz, Uniform Resolution"
+    STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"
 
     @classmethod
     def list(cls) -> list:
@@ -840,7 +850,6 @@ def _create_file(
         image_tracer = Tracer(image.Tracer)
         logging_header = f"[{modality.value} - {image_tracer.value}]"
     if not image.Path:
-        # todo : check for message redundancy
         cprint(
             f"{logging_header} No path specified for {subject} in session {viscode}",
             lvl="info",
@@ -990,20 +999,14 @@ def _get_output_path(modality: ADNIModalityConverter) -> str:
         return "func"
     if modality == ADNIModalityConverter.FMAP:
         return "fmap"
-    if modality in (
-        ADNIModalityConverter.PET_FDG,
-        ADNIModalityConverter.PET_FDG_8UNIFORM,
-        ADNIModalityConverter.PET_PIB,
-        ADNIModalityConverter.PET_AV45,
-        ADNIModalityConverter.PET_TAU,
-    ):  # todo : modify
+    if modality.is_pet():
         return "pet"
 
 
 def _get_output_filename(
     modality: ADNIModalityConverter, tracer: Optional[Tracer] = None
 ) -> str:
-    # todo : need to modify for new ones
+    # rq : tracer only defined for PET_AV45
     if modality == ADNIModalityConverter.T1:
         return "_T1w"
     if modality == ADNIModalityConverter.DWI:
@@ -1037,13 +1040,7 @@ def _should_be_centered(modality: ADNIModalityConverter) -> bool:
         return False
     if modality == ADNIModalityConverter.FMAP:
         return False
-    if modality in (
-        ADNIModalityConverter.PET_FDG,
-        ADNIModalityConverter.PET_FDG_8UNIFORM,
-        ADNIModalityConverter.PET_PIB,
-        ADNIModalityConverter.PET_AV45,
-        ADNIModalityConverter.PET_TAU,
-    ):  # todo : modify
+    if modality.is_pet():
         return True
 
 
@@ -1058,14 +1055,7 @@ def _write_json_sidecar(modality: ADNIModalityConverter) -> bool:
         return True
     if modality == ADNIModalityConverter.FMAP:
         return True
-    if modality in (
-        ADNIModalityConverter.PET_FDG,
-        ADNIModalityConverter.PET_FDG_8UNIFORM,
-        ADNIModalityConverter.PET_PIB,
-        ADNIModalityConverter.PET_AV45,
-        ADNIModalityConverter.PET_TAU,
-    ):
-        # todo : modify
+    if modality.is_pet():
         return False
 
 
