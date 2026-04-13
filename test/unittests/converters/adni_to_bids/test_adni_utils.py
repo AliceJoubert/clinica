@@ -39,12 +39,66 @@ def get_expected_path(tmp_path: Path, expected: Iterable[str]) -> set[Path]:
     ["PET_FDG", "PET_FDG_8UNIFORM", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB"],
 )
 def test_adni_modality_converter_is_pet_true(modality):
-    assert ADNIModalityConverter[f"{modality}"].is_pet()
+    assert ADNIModalityConverter[f"{modality}"].is_pet
 
 
 @pytest.mark.parametrize("modality", ["T1", "DWI", "FLAIR", "FMRI", "FMAP"])
 def test_adni_modality_converter_is_pet_false(modality):
-    assert not ADNIModalityConverter[f"{modality}"].is_pet()
+    assert not ADNIModalityConverter[f"{modality}"].is_pet
+
+
+@pytest.mark.parametrize(
+    "modality, expected",
+    [
+        ("T1", "anat"),
+        ("DWI", "dwi"),
+        ("FLAIR", "anat"),
+        ("FMRI", "func"),
+        ("FMAP", "fmap"),
+        ("PET_FDG", "pet"),
+        ("PET_FDG_8UNIFORM", "pet"),
+        ("PET_PIB", "pet"),
+        ("PET_AV45", "pet"),
+        ("PET_TAU", "pet"),
+    ],
+)
+def test_get_output_path(modality, expected):
+    assert ADNIModalityConverter[f"{modality}"].output_folder == expected
+
+
+@pytest.mark.parametrize(
+    "modality",
+    ["PET_FDG", "PET_FDG_8UNIFORM", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB", "T1"],
+)
+def test_write_json_sidecar_false(modality):
+    assert not ADNIModalityConverter[f"{modality}"].json_sidecar
+
+
+@pytest.mark.parametrize("modality", ["DWI", "FMRI", "FMAP", "FLAIR"])
+def test_write_json_sidecar_true(modality):
+    assert ADNIModalityConverter[f"{modality}"].json_sidecar
+
+
+@pytest.mark.parametrize(
+    "modality",
+    [
+        "PET_FDG",
+        "PET_FDG_8UNIFORM",
+        "PET_PIB",
+        "PET_AV45",
+        "PET_TAU",
+        "PET_FBB",
+        "T1",
+        "FLAIR",
+    ],
+)
+def test_should_be_centered_true(modality):
+    assert ADNIModalityConverter[f"{modality}"].to_center
+
+
+@pytest.mark.parametrize("modality", ["DWI", "FMRI", "FMAP"])
+def test_should_be_centered_false(modality):
+    assert not ADNIModalityConverter[f"{modality}"].to_center
 
 
 @pytest.mark.parametrize(
@@ -350,70 +404,6 @@ def test_remove_space_and_symbols(input_string, expected):
     from clinica.converters.adni_to_bids._utils import _remove_space_and_symbols
 
     assert _remove_space_and_symbols(input_string) == expected
-
-
-@pytest.mark.parametrize(
-    "modality, expected",
-    [
-        ("T1", "anat"),
-        ("DWI", "dwi"),
-        ("FLAIR", "anat"),
-        ("FMRI", "func"),
-        ("FMAP", "fmap"),
-        ("PET_FDG", "pet"),
-        ("PET_FDG_8UNIFORM", "pet"),
-        ("PET_PIB", "pet"),
-        ("PET_AV45", "pet"),
-        ("PET_TAU", "pet"),
-    ],
-)
-def test_get_output_path(modality, expected):
-    from clinica.converters.adni_to_bids._utils import _get_output_path
-
-    assert _get_output_path(ADNIModalityConverter[f"{modality}"]) == expected
-
-
-@pytest.mark.parametrize(
-    "modality",
-    [
-        "PET_FDG",
-        "PET_FDG_8UNIFORM",
-        "PET_PIB",
-        "PET_AV45",
-        "PET_TAU",
-        "PET_FBB",
-        "T1",
-        "FLAIR",
-    ],
-)
-def test_should_be_centered_true(modality):
-    from clinica.converters.adni_to_bids._utils import _should_be_centered
-
-    assert _should_be_centered(ADNIModalityConverter[f"{modality}"])
-
-
-@pytest.mark.parametrize("modality", ["DWI", "FMRI", "FMAP"])
-def test_should_be_centered_false(modality):
-    from clinica.converters.adni_to_bids._utils import _should_be_centered
-
-    assert not _should_be_centered(ADNIModalityConverter[f"{modality}"])
-
-
-@pytest.mark.parametrize(
-    "modality",
-    ["PET_FDG", "PET_FDG_8UNIFORM", "PET_PIB", "PET_AV45", "PET_TAU", "PET_FBB", "T1"],
-)
-def test_write_json_sidecar_false(modality):
-    from clinica.converters.adni_to_bids._utils import _write_json_sidecar
-
-    assert not _write_json_sidecar(ADNIModalityConverter[f"{modality}"])
-
-
-@pytest.mark.parametrize("modality", ["DWI", "FMRI", "FMAP", "FLAIR"])
-def test_write_json_sidecar_true(modality):
-    from clinica.converters.adni_to_bids._utils import _write_json_sidecar
-
-    assert _write_json_sidecar(ADNIModalityConverter[f"{modality}"])
 
 
 @pytest.mark.parametrize(
