@@ -63,7 +63,7 @@ class ADNIModalityConverter(str, Enum):
 
     T1 = "T1"
     PET_FDG = "PET_FDG"
-    PET_FDG_UNIFORM = "PET_FDG_UNIFORM"
+    PET_FDG_8UNIFORM = "PET_FDG_8UNIFORM"
     PET_PIB = "PET_PIB"
     PET_FBB = "PET_FBB"
     PET_AV45 = "PET_AV45"
@@ -81,15 +81,15 @@ class ADNIPETPreprocessingStep(Enum):
     STEP1 = "Co-registered Dynamic"
     STEP2 = "Co-registered, Averaged"
     STEP3 = "Coreg, Avg, Standardized Image and Voxel Size"
-    STEP4_8MM = "Coreg, Avg, Std Img and Vox Siz, Uniform Resolution"
-    STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"
+    STEP4_8MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 8mm Resolution"
+    STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Resolution"
 
     @classmethod
     def list(cls) -> list:
         return list(ADNIPETPreprocessingStep)
 
     @classmethod
-    def possibilities_as_str(cls) -> str:
+    def possibilities_inventory(cls) -> str:
         newline = "\n"
         return newline.join(
             [f"{cls.list().index(step)} : {step.value}" for step in cls.list()]
@@ -101,7 +101,7 @@ class ADNIPETPreprocessingStep(Enum):
         error_msg = (
             f"Step value {step_value} is not a valid ADNI preprocessing step value."
             f"Valid values are : "
-            f"{cls.possibilities_as_str()}."
+            f"{cls.possibilities_inventory()}."
         )
         if step_value != int(step_value):
             raise ValueError(error_msg)
@@ -992,7 +992,7 @@ def _get_output_path(modality: ADNIModalityConverter) -> str:
         return "fmap"
     if modality in (
         ADNIModalityConverter.PET_FDG,
-        ADNIModalityConverter.PET_FDG_UNIFORM,
+        ADNIModalityConverter.PET_FDG_8UNIFORM,
         ADNIModalityConverter.PET_PIB,
         ADNIModalityConverter.PET_AV45,
         ADNIModalityConverter.PET_TAU,
@@ -1016,7 +1016,7 @@ def _get_output_filename(
         return "_fmap"
     if modality == ADNIModalityConverter.PET_FDG:
         return f"_trc-{Tracer.FDG.value}_rec-{ReconstructionMethod.CO_REGISTERED_AVERAGED.value}_pet"
-    if modality == ADNIModalityConverter.PET_FDG_UNIFORM:
+    if modality == ADNIModalityConverter.PET_FDG_8UNIFORM:
         return f"_trc-{Tracer.FDG.value}_rec-{ReconstructionMethod.COREGISTERED_ISOTROPIC.value}_pet"
     if modality == ADNIModalityConverter.PET_PIB:
         return f"_trc-{Tracer.PIB.value}_pet"
@@ -1039,7 +1039,7 @@ def _should_be_centered(modality: ADNIModalityConverter) -> bool:
         return False
     if modality in (
         ADNIModalityConverter.PET_FDG,
-        ADNIModalityConverter.PET_FDG_UNIFORM,
+        ADNIModalityConverter.PET_FDG_8UNIFORM,
         ADNIModalityConverter.PET_PIB,
         ADNIModalityConverter.PET_AV45,
         ADNIModalityConverter.PET_TAU,
@@ -1060,7 +1060,7 @@ def _write_json_sidecar(modality: ADNIModalityConverter) -> bool:
         return True
     if modality in (
         ADNIModalityConverter.PET_FDG,
-        ADNIModalityConverter.PET_FDG_UNIFORM,
+        ADNIModalityConverter.PET_FDG_8UNIFORM,
         ADNIModalityConverter.PET_PIB,
         ADNIModalityConverter.PET_AV45,
         ADNIModalityConverter.PET_TAU,

@@ -41,7 +41,7 @@ def _check_modality_with_preprocessing_step(
         if step == ADNIPETPreprocessingStep.STEP2:
             return ADNIModalityConverter.PET_FDG
         if step == ADNIPETPreprocessingStep.STEP4_8MM:
-            return ADNIModalityConverter.PET_FDG_UNIFORM
+            return ADNIModalityConverter.PET_FDG_8UNIFORM
     if step == ADNIPETPreprocessingStep.STEP2:
         return modality
     raise ValueError(
