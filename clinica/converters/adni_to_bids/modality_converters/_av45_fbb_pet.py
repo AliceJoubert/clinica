@@ -56,9 +56,6 @@ def convert_av45_fbb_pet(
         ADNI PET Preprocessing Step to search PET scans with for all PET modalities
         Default : ADNIPETPreprocessingStep.STEP2
     """
-    from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
-        _check_modality_with_preprocessing_step,
-    )
     from clinica.utils.stream import cprint
 
     from .._utils import paths_to_bids
@@ -72,15 +69,13 @@ def convert_av45_fbb_pet(
     cprint(
         "Paths of AV45 and Florbetaben PET images found. Exporting images into BIDS ..."
     )
-    modality = _check_modality_with_preprocessing_step(
-        ADNIModalityConverter.PET_AV45, pet_preprocessing_step
-    )
     paths_to_bids(
         images,
         destination_dir,
-        modality,
+        ADNIModalityConverter.PET_AV45,
         force_new_extraction=force_new_extraction,
         n_procs=n_procs,
+        pet_preprocessing_step=pet_preprocessing_step,
     )
     cprint(msg="AV45 and Florbetaben (FBB) PET conversion done.", lvl="debug")
 

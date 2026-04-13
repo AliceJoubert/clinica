@@ -55,9 +55,6 @@ def convert_pib_pet(
         ADNI PET Preprocessing Step to search PET scans with for all PET modalities
         Default : ADNIPETPreprocessingStep.STEP2
     """
-    from clinica.converters.adni_to_bids.modality_converters._pet_utils import (
-        _check_modality_with_preprocessing_step,
-    )
     from clinica.utils.stream import cprint
 
     from .._utils import paths_to_bids
@@ -76,15 +73,14 @@ def convert_pib_pet(
         f"Paths of {ADNIModalityConverter.PET_PIB.value} images found. Exporting images into BIDS ...",
         lvl="info",
     )
-    modality = _check_modality_with_preprocessing_step(
-        ADNIModalityConverter.PET_PIB, pet_preprocessing_step
-    )
+    modality = ADNIModalityConverter.PET_PIB
     paths_to_bids(
         images,
         destination_dir,
         modality,
         force_new_extraction=force_new_extraction,
         n_procs=n_procs,
+        pet_preprocessing_step=pet_preprocessing_step,
     )
     cprint(msg=f"{modality.value} conversion done.", lvl="debug")
 

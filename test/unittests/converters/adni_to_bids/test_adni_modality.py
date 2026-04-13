@@ -103,17 +103,34 @@ def test_adni_preprocessing_step_from_value_error(value):
         ("FMRI", "_task-rest_bold"),
         ("FMAP", "_fmap"),
         ("PET_FDG", "_trc-18FFDG_rec-coregavg_pet"),
-        ("PET_FDG_8UNIFORM", "_trc-18FFDG_rec-coregiso_pet"),
-        ("PET_PIB", "_trc-11CPIB_pet"),
-        ("PET_AV45", "_trc-18FAV45_pet"),
-        ("PET_TAU", "_trc-18FAV1451_pet"),
+        ("PET_FDG_8UNIFORM", "_trc-18FFDG_rec-coregavg_pet"),
+        ("PET_PIB", "_trc-11CPIB_rec-coregavg_pet"),
+        ("PET_TAU", "_trc-18FAV1451_rec-coregavg_pet"),
     ],
 )
 def test_get_output_filename(modality, expected):
     from clinica.converters.adni_to_bids._modality import _get_output_filename
+
+    assert _get_output_filename(ADNIModalityConverter[f"{modality}"]) == expected
+
+
+def test_get_output_filename_with_tracer():
+    from clinica.converters.adni_to_bids._modality import _get_output_filename
     from clinica.utils.pet import Tracer
 
     assert (
-        _get_output_filename(ADNIModalityConverter[f"{modality}"], tracer=Tracer.AV45)
-        == expected
+        _get_output_filename(ADNIModalityConverter.PET_AV45, tracer=Tracer.AV45)
+        == "_trc-18FAV45_rec-coregavg_pet"
+    )
+
+
+def test_get_output_filename_with_step():
+    from clinica.converters.adni_to_bids._modality import _get_output_filename
+
+    assert (
+        _get_output_filename(
+            ADNIModalityConverter.PET_AV45,
+            pet_preprocessing_step=ADNIPETPreprocessingStep.STEP4_8MM,
+        )
+        == "_trc-18FAV45_rec-coregiso8_pet"
     )

@@ -4,7 +4,10 @@ from typing import Iterable, List, Optional, Union
 
 import pandas as pd
 
-from clinica.converters.adni_to_bids._modality import ADNIModalityConverter
+from clinica.converters.adni_to_bids._modality import (
+    ADNIModalityConverter,
+    ADNIPETPreprocessingStep,
+)
 from clinica.utils.pet import Tracer
 from clinica.utils.stream import cprint
 
@@ -592,6 +595,9 @@ def paths_to_bids(
     modality: ADNIModalityConverter,
     force_new_extraction: bool = False,
     n_procs: Optional[int] = 1,
+    pet_preprocessing_step: Optional[
+        ADNIPETPreprocessingStep
+    ] = ADNIPETPreprocessingStep.STEP2,
 ) -> list[Path]:
     """Images in the list are converted and copied to directory in BIDS format.
 
@@ -614,6 +620,10 @@ def paths_to_bids(
         The number of processes to use for conversion.
         Default=1.
 
+    pet_preprocessing_step: ADNIPETPreprocessingStep, optional
+        ADNI PET Preprocessing Step to search PET scans with for all PET modalities
+        Default = ADNIPETPreprocessingStep.STEP2
+
     Returns
     -------
     output_file_treated : list of paths
@@ -630,6 +640,7 @@ def paths_to_bids(
         modality=modality,
         bids_dir=bids_dir,
         force_new_extraction=force_new_extraction,
+        pet_preprocessing_step=pet_preprocessing_step,
     )
     # If n_procs==1 do not rely on a Process Pool to enable classical debugging
     if n_procs == 1:
@@ -699,6 +710,9 @@ def _create_file(
     modality: ADNIModalityConverter,
     bids_dir: Path,
     force_new_extraction: bool,
+    pet_preprocessing_step: Optional[
+        ADNIPETPreprocessingStep
+    ] = ADNIPETPreprocessingStep.STEP2,
 ) -> Optional[Path]:
     """Creates an image file at the corresponding output folder.
 
@@ -719,6 +733,10 @@ def _create_file(
     force_new_extraction : bool
         If True, pre-existing images in the BIDS directory will be
         erased and extracted again.
+
+    pet_preprocessing_step: ADNIPETPreprocessingStep, optional
+        ADNI PET Preprocessing Step used to search for right PET scans
+        Default = ADNIPETPreprocessingStep.STEP2
 
     Returns
     -------
@@ -773,15 +791,14 @@ def _create_file(
         image_path = _check_two_dcm_folder(image_path, bids_dir, image_id)
     bids_id = bids_id_factory(StudyName.ADNI).from_original_study_id(subject)
     output_path = bids_dir / bids_id / session / modality.output_folder
-    output_filename = (
-        f"{bids_id}_{session}{_get_output_filename(modality, image_tracer)}"
-    )
+    acq_details = _get_output_filename(modality, image_tracer, pet_preprocessing_step)
+    output_filename = f"{bids_id}_{session}{acq_details}"
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Check if old images exist and if updated mode is set to TRUE remove them
     if not _remove_existing_images_if_necessary(
         output_path,
-        (_get_output_filename(modality, image_tracer), "magnitude", "phase"),
+        (acq_details, "magnitude", "phase"),
         force_new_extraction,
     ):
         return None

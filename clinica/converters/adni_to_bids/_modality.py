@@ -7,6 +7,7 @@ __all__ = [
     "ADNIModality",
     "ADNIModalityConverter",
     "ADNIPETPreprocessingStep",
+    "_get_output_filename",
 ]
 
 
@@ -108,6 +109,23 @@ class ADNIModalityConverter(str, Enum):
         if self.is_pet:
             return True
 
+    @property
+    def tracer(self) -> Optional[Tracer]:
+        if (
+            self == ADNIModalityConverter.PET_FDG
+            or self == ADNIModalityConverter.PET_FDG_8UNIFORM
+        ):
+            return Tracer.FDG
+        if self == ADNIModalityConverter.PET_PIB:
+            return Tracer.PIB
+        if self == ADNIModalityConverter.PET_FBB:
+            return Tracer.FBB
+        if self == ADNIModalityConverter.PET_AV45:
+            return Tracer.AV45
+        if self == ADNIModalityConverter.PET_TAU:
+            return Tracer.AV1451
+        return None
+
 
 class ADNIPETPreprocessingStep(Enum):
     """ADNI preprocessing steps."""
@@ -148,9 +166,28 @@ class ADNIPETPreprocessingStep(Enum):
             return cls[f"STEP{step_value}"]
         raise ValueError(error_msg)
 
+    @property
+    def reconstruction_method(self) -> Optional[str]:
+        # See the original ReconstructionMethod Class in clinica.utils.pet, based on https://adni.loni.usc.edu/data-samples/adni-data/neuroimaging/pet/
+        if self == ADNIPETPreprocessingStep.STEP1:
+            return "coregdyn"
+        if self == ADNIPETPreprocessingStep.STEP2:
+            return "coregavg"
+        if self == ADNIPETPreprocessingStep.STEP3:
+            return "coregstd"
+        if self == ADNIPETPreprocessingStep.STEP4_8MM:
+            return "coregiso8"
+        if self == ADNIPETPreprocessingStep.STEP4_6MM:
+            return "coregiso6"
+        return None
+
 
 def _get_output_filename(
-    modality: ADNIModalityConverter, tracer: Optional[Tracer] = None
+    modality: ADNIModalityConverter,
+    tracer: Optional[Tracer] = None,
+    pet_preprocessing_step: Optional[
+        ADNIPETPreprocessingStep
+    ] = ADNIPETPreprocessingStep.STEP2,
 ) -> str:
     # rq : tracer only defined for PET_AV45
     if modality == ADNIModalityConverter.T1:
@@ -163,13 +200,7 @@ def _get_output_filename(
         return "_task-rest_bold"
     if modality == ADNIModalityConverter.FMAP:
         return "_fmap"
-    if modality == ADNIModalityConverter.PET_FDG:
-        return f"_trc-{Tracer.FDG.value}_rec-{ReconstructionMethod.CO_REGISTERED_AVERAGED.value}_pet"
-    if modality == ADNIModalityConverter.PET_FDG_8UNIFORM:
-        return f"_trc-{Tracer.FDG.value}_rec-{ReconstructionMethod.COREGISTERED_ISOTROPIC.value}_pet"
-    if modality == ADNIModalityConverter.PET_PIB:
-        return f"_trc-{Tracer.PIB.value}_pet"
-    if modality == ADNIModalityConverter.PET_AV45:
-        return f"_trc-{tracer.value}_pet"
-    if modality == ADNIModalityConverter.PET_TAU:
-        return f"_trc-{Tracer.AV1451.value}_pet"
+    if modality.is_pet:
+        if not tracer:
+            tracer = modality.tracer
+        return f"_trc-{tracer.value}_rec-{pet_preprocessing_step.reconstruction_method}_pet"

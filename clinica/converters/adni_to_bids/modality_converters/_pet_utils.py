@@ -33,24 +33,6 @@ def define_pet_processing_step_with_tracer(
     return f"{tracer.value} {step.value}"
 
 
-def _check_modality_with_preprocessing_step(
-    modality: ADNIModalityConverter,
-    step: ADNIPETPreprocessingStep,
-) -> ADNIModalityConverter:
-    if modality == ADNIModalityConverter.PET_FDG:
-        if step == ADNIPETPreprocessingStep.STEP2:
-            return ADNIModalityConverter.PET_FDG
-        if step == ADNIPETPreprocessingStep.STEP4_8MM:
-            return ADNIModalityConverter.PET_FDG_8UNIFORM
-    if step == ADNIPETPreprocessingStep.STEP2:
-        return modality
-    raise ValueError(
-        f"The ADNI preprocessing step {step} is not (yet) supported by the converter for PET tracer {modality}."
-        f"The converter only supports {ADNIPETPreprocessingStep.STEP2} and "
-        f"{ADNIPETPreprocessingStep.STEP4_8MM} for now. Please contact us if you need something different."
-    )
-
-
 def get_images_pet(
     subject: str,
     pet_qc_subj: pd.DataFrame,
