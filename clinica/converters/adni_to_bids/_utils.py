@@ -85,14 +85,23 @@ class ADNIPETPreprocessingStep(Enum):
     STEP4_6MM = "Coreg, Avg, Std Img and Vox Siz, Uniform 6mm Res"
 
     @classmethod
+    def list(cls) -> list:
+        return list(ADNIPETPreprocessingStep)
+
+    @classmethod
+    def possibilities_as_str(cls) -> str:
+        newline = "\n"
+        return newline.join(
+            [f"{cls.list().index(step)} : {step.value}" for step in cls.list()]
+        )
+
+    @classmethod
     def from_step_value(cls, step_value: int):
         """Accept step specification in raw integer (0, 1, ..., 5)."""
-        newline = "\n"
-        lst = list(ADNIPETPreprocessingStep)
         error_msg = (
             f"Step value {step_value} is not a valid ADNI preprocessing step value."
-            f"Valid values are : {newline}"
-            f"{newline.join([f"{lst.index(step)} : {step.value}" for step in lst])}."
+            f"Valid values are : "
+            f"{cls.possibilities_as_str()}."
         )
         if step_value != int(step_value):
             raise ValueError(error_msg)
