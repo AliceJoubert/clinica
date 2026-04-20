@@ -392,6 +392,26 @@ def _running_mris_expand_with_subprocess(cmd: str) -> None:
         raise ValueError("mris_expand failed, returned non-zero code")
 
 
+def _check_mri_expand_file_location_then_move(
+    working_directory: str, input_file_location: str
+) -> str:
+    import shutil
+    from pathlib import Path
+
+    filename = Path(input_file_location).name
+    expected_location = f"{working_directory}/{filename}_exp-"
+
+    if Path(input_file_location + "_exp-000").is_file():
+        for i in range(0, 14):
+            identifier = str(i).zfill(3)
+            shutil.move(
+                f"{input_file_location}_exp-" + identifier,
+                expected_location + identifier,
+            )
+
+    return expected_location
+
+
 def mris_expand(in_surface):
     """mris_expand is using the freesurfer function of the same name. It expands the white input surface toward the pial,
     generating 7 surfaces at 35%, 40%, 45%, 50%, 55%, 60%, 65% of thickness.
@@ -404,9 +424,9 @@ def mris_expand(in_surface):
         (list of strings) List of path to the generated surfaces
     """
     import os
-    from pathlib import Path
 
     from clinica.pipelines.pet_surface.pet_surface_utils import (  # noqa
+        _check_mri_expand_file_location_then_move,
         _running_mris_expand_with_subprocess,
         _setting_mris_expand_cmd,
     )
@@ -417,21 +437,19 @@ def mris_expand(in_surface):
     # source and final target surface. Here target is 65% of thickness, with 13 surfaces. Then we only keep the surfaces
     # we are interested in.
 
-    out_file = Path(in_surface).name + "_exp-"
-
     _running_mris_expand_with_subprocess(_setting_mris_expand_cmd(in_surface))
 
     # Remove useless surfaces (0%, 5%, 10%, 15%, 20%, 25% and 30% of thickness)
     cprint(msg="Removing unnecessary mris_expands outputs (000 to 007)", lvl="debug")
-    for file in [
-        out_file + x for x in ("000", "001", "002", "003", "004", "005", "006")
-    ]:
+
+    out_file = _check_mri_expand_file_location_then_move(
+        working_directory=os.getcwd(), input_file_location=in_surface
+    )
+
+    for file in [out_file + str(x).zfill(3) for x in range(0, 7)]:
         os.remove(file)
 
-    return [
-        os.path.abspath(out_file + x)
-        for x in ("007", "008", "009", "010", "011", "012", "013")
-    ]
+    return [os.path.abspath(out_file + str(x).zfill(3)) for x in range(7, 14)]
 
 
 def surf2surf(
