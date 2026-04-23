@@ -28,31 +28,31 @@ def convert(
     from .._utils import validate_input_path, write_modality_agnostic_files
     from ._utils import (
         dataset_to_bids,
+        filter_imaging_data_by_subjects,
         intersect_data,
-        read_clinical_data,
         read_imaging_data,
+        select_data_for_participants,
         write_bids,
     )
 
     path_to_dataset = validate_input_path(path_to_dataset)
     bids_dir = validate_input_path(bids_dir, check_exist=False)
     path_to_clinical = validate_input_path(path_to_clinical)
-    if subjects:
-        cprint(
-            (
-                f"Subject filtering is not yet implemented in {get_converter_name(StudyName.OASIS3)} converter. "
-                "All subjects available will be converted."
-            ),
-            lvl="warning",
-        )
     if n_procs != 1:
         cprint(
             f"{get_converter_name(StudyName.OASIS3)} converter does not support multiprocessing yet. n_procs set to 1.",
             lvl="warning",
         )
-    dict_df = read_clinical_data(path_to_clinical)
+
     imaging_data = read_imaging_data(path_to_dataset)
-    imaging_data, df_small = intersect_data(imaging_data, dict_df)
+
+    if subjects:
+        imaging_data = filter_imaging_data_by_subjects(
+            imaging_data, validate_input_path(subjects)
+        )
+
+    df_small = select_data_for_participants(imaging_data["Subject"], path_to_clinical)
+    imaging_data = intersect_data(imaging_data, path_to_clinical)
     participants, sessions, scans = dataset_to_bids(imaging_data, df_small)
     write_bids(
         to=bids_dir,
