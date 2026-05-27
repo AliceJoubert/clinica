@@ -14,10 +14,10 @@ def cli(
     clinical_data_directory: Path,
     bids_directory: Path,
 ) -> None:
-    """NIFD to BIDS converter.
+    """OASIS2 to BIDS converter.
 
-    Convert the imaging and clinical data of OASIS2 (...), located in DATASET_DIRECTORY and
-    CLINICAL_DATA_DIRECTORY respectively, to a BIDS dataset in the target BIDS_DIRECTORY.
+    Convert the imaging and clinical data of OASIS2 (https://sites.wustl.edu/oasisbrains/), located in DATASET_DIRECTORY and
+    CLINICAL_DATA_DIRECTORY (oasis_longitudinal_demographics.csv) respectively, to a BIDS dataset in the target BIDS_DIRECTORY.
     """
     from ._converter import convert
 
