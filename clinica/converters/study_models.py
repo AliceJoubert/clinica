@@ -17,6 +17,7 @@ __all__ = [
     "OASIS3BIDSSubjectID",
     "HABSBIDSSubjectID",
     "IXIBIDSSubjectID",
+    "OASIS2BIDSSubjectID",
 ]
 
 
