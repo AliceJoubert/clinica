@@ -11,7 +11,7 @@ __all__ = [
     "write_bids",
 ]
 
-"""Utility functions for the OASIS-2 to BIDS converter.
+"""
 
 OASIS-2 dataset structure expected on disk
 ------------------------------------------
@@ -75,7 +75,11 @@ def read_clinical_data(clinical_data_directory: Path) -> pd.DataFrame:
     pd.DataFrame
         One row per MRI session with all clinical variables.
     """
-    csv_files = list(clinical_data_directory.glob("*.csv"))
+    csv_files = list(
+        clinical_data_directory.glob(
+            "oasis_longitudinal_demographics-8d83e569fa2e2d30.csv"
+        )
+    )
     if not csv_files:
         raise FileNotFoundError(
             f"No CSV clinical data file found in {clinical_data_directory}.\n"
@@ -336,6 +340,7 @@ def _convert_analyze_to_nifti(source_path: Path, target_path: Path) -> None:
     """
     import nibabel as nib
     import numpy as np
+    # todo : does this work ??
 
     img = nib.load(str(source_path))
     nii = nib.Nifti1Image(np.asarray(img.dataobj), img.affine, img.header)
