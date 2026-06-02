@@ -18,19 +18,20 @@ OASIS-2 dataset structure expected on disk
 <imaging_dir>/
     OAS2_XXXX_MR1/
         RAW/
-            OAS2_XXXX_MR1_mpr-1_anon.img   # ANALYZE 7.5 header
-            OAS2_XXXX_MR1_mpr-1_anon.hdr
-            OAS2_XXXX_MR1_mpr-2_anon.img   # repeated acquisitions per session
-            OAS2_XXXX_MR1_mpr-2_anon.hdr
+            mpr-1.nifti.img
+            mpr-1.nifti.hdr
+            mpr-2.nifti.img
+            mpr-2.nifti.hdr
             ...
     OAS2_XXXX_MR2/
         RAW/
             ...
 
 <clinical_dir>/
-    oasis_longitudinal_demographics.csv     # one CSV, columns described below
+    oasis_longitudinal_demographics.csv   # or .xlsx
+    (downloaded from https://sites.wustl.edu/oasisbrains/)
 
-Clinical CSV columns (actual OASIS-2 file)
+Clinical file columns
 ------------------------------------------
 Subject ID | MRI ID | Group | Visit | MR Delay | M/F | Hand | Age | EDUC | SES |
 MMSE | CDR | eTIV | nWBV | ASF
@@ -64,6 +65,10 @@ _REQUIRED_CLINICAL_COLUMNS = {
 def read_clinical_data(clinical_data_directory: Path) -> pd.DataFrame:
     """Read the OASIS-2 longitudinal demographics CSV file.
 
+    The OASIS-2 website distributes the demographics file as an XLSX.
+    Both .xlsx and .csv are supported; the directory must contain exactly
+    one file of either format.
+
     Parameters
     ----------
     clinical_data_directory:
@@ -75,29 +80,35 @@ def read_clinical_data(clinical_data_directory: Path) -> pd.DataFrame:
     pd.DataFrame
         One row per MRI session with all clinical variables.
     """
-    csv_files = list(
-        clinical_data_directory.glob(
-            "oasis_longitudinal_demographics-8d83e569fa2e2d30.csv"
-        )
-    )
-    if not csv_files:
+    csv_files = list(clinical_data_directory.glob("*.csv"))
+    xlsx_files = list(clinical_data_directory.glob("*.xlsx"))
+
+    all_files = csv_files + xlsx_files
+    if not all_files:
         raise FileNotFoundError(
-            f"No CSV clinical data file found in {clinical_data_directory}.\n"
-            "Please place the OASIS-2 'oasis_longitudinal_demographics.csv' "
-            "file in that directory."
+            f"No clinical data file found in {clinical_data_directory}.\n"
+            "Please place the OASIS-2 demographics file (.csv or .xlsx) "
+            "in that directory."
         )
-    if len(csv_files) > 1:
+    if len(all_files) > 1:
         raise ValueError(
-            f"Multiple CSV files found in {clinical_data_directory}. "
-            "Only one clinical demographics file is expected for OASIS-2."
+            f"Multiple clinical data files found in {clinical_data_directory}: "
+            f"{[f.name for f in all_files]}. "
+            "Only one file is expected."
         )
-    df = pd.read_csv(csv_files[0])
-    # Normalise column names (strip accidental whitespace)
+
+    clinical_file = all_files[0]
+    if clinical_file.suffix == ".xlsx":
+        df = pd.read_excel(clinical_file)
+    else:
+        df = pd.read_csv(clinical_file)
+
     df.columns = df.columns.str.strip()
+
     missing = _REQUIRED_CLINICAL_COLUMNS - set(df.columns)
     if missing:
         raise ValueError(
-            f"Clinical CSV is missing expected columns: {sorted(missing)}.\n"
+            f"Clinical file is missing expected columns: {sorted(missing)}.\n"
             "Make sure you are providing the OASIS-2 longitudinal demographics file."
         )
     return df
@@ -144,7 +155,7 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
         raise FileNotFoundError(
             f"No ANALYZE (.img) T1w acquisitions found under {imaging_data_directory}.\n"
             "Expected files matching the pattern: "
-            "OAS2_XXXX_MRY/RAW/OAS2_XXXX_MRY_mpr-N_anon.img"
+            "OAS2_XXXX_MRY/RAW/mpr-N.nifti.img"
         )
 
     df = pd.DataFrame(records)
@@ -158,25 +169,24 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
 def _find_imaging_data(path_to_source_data: Path) -> Iterable[Path]:
     """Yield relative paths to every raw MPRAGE ANALYZE acquisition.
 
-    Matches both naming variants found in the wild:
-      - OAS2_XXXX_MRY_mpr-N_anon.img   (original OASIS-2 download)
-      - OAS2_XXXX_MRY_mprN.img         (some re-packaged versions)
+    Files follow the naming convention: mpr-N.nifti.img
+    e.g. mpr-1.nifti.img, mpr-2.nifti.img, ...
     """
-    for image in path_to_source_data.rglob("RAW/*mpr*.img"):
+    for image in path_to_source_data.rglob("RAW/mpr-*.img"):
         yield image.relative_to(path_to_source_data)
 
 
 def _identify_run(source_path: Path) -> str:
-    """Return a BIDS run label from the mpr-N or mprN suffix in the filename.
+    """Return a BIDS run label from the mpr-N suffix in the filename.
 
     Examples
     --------
-    ``OAS2_0001_MR1_mpr-1_anon.img``  →  ``run-01``
-    ``OAS2_0001_MR1_mpr3.img``        →  ``run-03``
+    ``mpr-1.nifti.img``  ->  ``run-01``
+    ``mpr-4.nifti.img``  ->  ``run-04``
     """
     import re
 
-    match = re.search(r"mpr-?(\d+)", source_path.name)
+    match = re.search(r"mpr-(\d+)", source_path.name)
     return f"run-{int(match.group(1)):02d}" if match else "run-01"
 
 
@@ -208,11 +218,11 @@ def intersect_data(
         ``participants.tsv``.
     """
     df_clinical = df_clinical.copy()
-    # Derive session label (MR1, MR2, …) directly from the MRI ID column
+    # Derive session label (MR1, MR2, ...) from the MRI ID column
     # MRI ID format: OAS2_XXXX_MRY
     df_clinical["session_label"] = df_clinical["MRI ID"].str.split("_").str[2]
 
-    # Inner join keeps only subjects/sessions present in *both* data sources
+    # Inner join: keep only subjects/sessions present in both data sources
     df_merged = df_imaging.merge(
         df_clinical,
         on=["Subject ID", "session_label"],
@@ -231,7 +241,7 @@ def intersect_data(
         )
     )
 
-    # Per-subject baseline record (earliest session) → participants.tsv
+    # Per-subject baseline record (earliest session) -> participants.tsv
     df_subjects = (
         df_clinical.sort_values("session_label")
         .drop_duplicates(subset=["Subject ID"], keep="first")[
@@ -288,7 +298,8 @@ def _build_participants_df(df_subjects: pd.DataFrame) -> pd.DataFrame:
 
 def _build_sessions_df(df_merged: pd.DataFrame) -> pd.DataFrame:
     """One row per (subject, session): clinical variables measured at that visit."""
-    # "MR Delay" = days since first visit (may be absent in some CSV exports)
+    # MR Delay = days since first visit; Visit = session label in source CSV.
+    # Both are optional: not all exports include them.
     optional_cols = {"MR Delay": "days_since_first_visit", "Visit": "visit"}
     base_cols = {
         "Age": "age",
@@ -314,7 +325,7 @@ def _build_sessions_df(df_merged: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_scans_df(df_merged: pd.DataFrame) -> pd.DataFrame:
-    """One row per image file: maps BIDS filename → source ANALYZE path."""
+    """One row per image file: maps BIDS filename -> source ANALYZE path."""
     return (
         df_merged[["filename", "source_path"]]
         .drop_duplicates(subset=["filename"])
@@ -330,6 +341,11 @@ def _build_scans_df(df_merged: pd.DataFrame) -> pd.DataFrame:
 def _convert_analyze_to_nifti(source_path: Path, target_path: Path) -> None:
     """Convert an ANALYZE 7.5 .img/.hdr pair to a compressed NIfTI file.
 
+    Some OASIS-2 ANALYZE files are stored as 4D arrays with a dummy
+    trailing dimension of size 1, e.g. shape (256, 256, 128, 1).
+    BIDS requires exactly 3 dimensions for T1w files, so any such
+    trailing dimensions are squeezed out before saving.
+
     Parameters
     ----------
     source_path:
@@ -340,10 +356,17 @@ def _convert_analyze_to_nifti(source_path: Path, target_path: Path) -> None:
     """
     import nibabel as nib
     import numpy as np
-    # todo : does this work ??
 
     img = nib.load(str(source_path))
-    nii = nib.Nifti1Image(np.asarray(img.dataobj), img.affine, img.header)
+    data = np.squeeze(np.asarray(img.dataobj))
+
+    if data.ndim != 3:
+        raise ValueError(
+            f"Expected a 3D volume after squeezing but got shape {data.shape} "
+            f"for file {source_path}."
+        )
+
+    nii = nib.Nifti1Image(data, img.affine, img.header)
     target_path.parent.mkdir(parents=True, exist_ok=True)
     nib.save(nii, str(target_path))
 
@@ -373,8 +396,7 @@ def write_bids(
     scans:
         Output of :func:`_build_scans_df`.
     dataset_directory:
-        Root of the original OASIS-2 imaging directory (for resolving
-        source ANALYZE paths).
+        Root of the original OASIS-2 imaging directory.
 
     Returns
     -------
@@ -389,27 +411,18 @@ def write_bids(
 
     fs = LocalFileSystem(auto_mkdir=True)
 
-    # ------------------------------------------------------------------
-    # Top-level BIDS files: dataset_description.json + participants.tsv
-    # ------------------------------------------------------------------
     with fs.transaction:
         with fs.open(to / "dataset_description.json", "w") as f:
             BIDSDatasetDescription(name="OASIS-2").write(to=f)
         with fs.open(to / "participants.tsv", "w") as f:
             write_to_tsv(participants, f)
 
-    # ------------------------------------------------------------------
-    # Per-subject sessions.tsv
-    # ------------------------------------------------------------------
     for participant_id, sessions_group in sessions.groupby("participant_id"):
         sessions_group = sessions_group.droplevel("participant_id")
         sessions_filepath = to / participant_id / f"{participant_id}_sessions.tsv"
         with fs.open(sessions_filepath, "w") as sf:
             write_to_tsv(sessions_group, sf)
 
-    # ------------------------------------------------------------------
-    # Convert ANALYZE → NIfTI and write into the BIDS tree
-    # ------------------------------------------------------------------
     written = []
     for filename, metadata in scans.iterrows():
         source_full = dataset_directory / metadata.source_path
