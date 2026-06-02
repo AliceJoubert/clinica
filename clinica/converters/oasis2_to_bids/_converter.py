@@ -1,5 +1,5 @@
 """Convert OASIS2 dataset (https://sites.wustl.edu/oasisbrains/) to BIDS."""
-# todo : change link
+
 from typing import Optional
 
 from clinica.utils.filemanip import UserProvidedPath
