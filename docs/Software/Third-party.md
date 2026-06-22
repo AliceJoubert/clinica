@@ -183,17 +183,13 @@ You can find more details about `MRtrix3` on their [website](http://www.mrtrix.o
 official instructions for [downloading](https://www.mrtrix.org/download/).
 
 === "Linux"
-    You have basically two options:
+    [Build MRtrix3 from source](https://mrtrix.readthedocs.io/en/latest/installation/build_from_source.html#linux).
 
-    - [Use the official conda package](https://www.mrtrix.org/download/linux-anaconda/).
-    - [Build MRtrix3 from source](https://mrtrix.readthedocs.io/en/latest/installation/build_from_source.html#linux).
-
-    !!! tip
-        Note that using the conda package should be easier in most cases.
+    !!! warning
+        The conda channel is not accessible anymore.
 
 === "MacOS"
 
-    - [Use the official conda package](https://www.mrtrix.org/download/macos-anaconda/).
     - [Use the MacOS pre-compiled application package installer](https://www.mrtrix.org/download/macos-application/).
     - [Use the Homebrew formula](https://github.com/MRtrix3/homebrew-mrtrix3) (although large dependencies such as `XCode` and `Qt5` are required).
 
