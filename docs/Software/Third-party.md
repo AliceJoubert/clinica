@@ -111,8 +111,12 @@ ___
 You can find more details about `Convert3D` on their [website](http://www.itksnap.org/pmwiki/pmwiki.php?n=Convert3D.Convert3D). There are
 two options to install it :
 
-- [Use pre-built binaries](http://www.itksnap.org/pmwiki/pmwiki.php?n=Downloads.C3D).
-- [Use the official conda package](https://anaconda.org/conda-forge/convert3d).
+=== "Linux / MacOS (Intell)"
+    - [Use pre-built binaries](http://www.itksnap.org/pmwiki/pmwiki.php?n=Downloads.C3D).
+    - [Use the official conda package](https://anaconda.org/conda-forge/convert3d).
+
+=== "MacOS (ARM)"
+    [Use pre-built binaries](http://www.itksnap.org/pmwiki/pmwiki.php?n=Downloads.C3D).
 
 ___
 
@@ -182,7 +186,7 @@ ___
 You can find more details about `MRtrix3` on their [website](http://www.mrtrix.org), including
 official instructions for [downloading](https://www.mrtrix.org/download/).
 
-=== "Linux"
+=== "Linux / MacOS (Intell)"
     You have basically two options:
 
     - [Use the official conda package](https://www.mrtrix.org/download/linux-anaconda/).
@@ -191,9 +195,8 @@ official instructions for [downloading](https://www.mrtrix.org/download/).
     !!! tip
         Note that using the conda package should be easier in most cases.
 
-=== "MacOS"
+=== "MacOS (ARM)"
 
-    - [Use the official conda package](https://www.mrtrix.org/download/macos-anaconda/).
     - [Use the MacOS pre-compiled application package installer](https://www.mrtrix.org/download/macos-application/).
     - [Use the Homebrew formula](https://github.com/MRtrix3/homebrew-mrtrix3) (although large dependencies such as `XCode` and `Qt5` are required).
 
