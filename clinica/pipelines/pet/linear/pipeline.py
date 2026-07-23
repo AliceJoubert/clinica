@@ -123,6 +123,7 @@ class PETLinear(PETPipeline):
         from clinica.utils.stream import cprint
         from clinica.utils.ux import print_images_to_process
 
+        self.ref_brain_mask = get_mni_template("brain_mask")
         self.ref_template = get_mni_template("t1")
         self.ref_mask = get_suvr_mask(self.parameters["suvr_reference_region"])
 
@@ -348,12 +349,51 @@ class PETLinear(PETPipeline):
         )
         clipping_node.inputs.output_dir = self.base_dir
 
+        # 1.2 `ApplyTransforms` by *ANTS*. It uses nipype interface. MNI brain mask to T1w space
+
+        ants_applytransform_reversed_node = npe.Node(
+            name="antsApplyTransformReverseMNItoT1w", interface=ants.ApplyTransforms()
+        )
+        ants_applytransform_reversed_node.inputs.dimension = 3
+        ants_applytransform_reversed_node.inputs.invert_transform_flags = True
+        ants_applytransform_reversed_node.inputs.input_image = self.ref_brain_mask
+
+        # 1.3 "ImageMath" by *ANTS*. It uses nipype interface. skull stripping using "AND" operator
+        ants_extractbrain_node = npe.Node(
+            name="antsMathImageBrainExtract", interface=ants.ImageMath()
+        )
+        ants_extractbrain_node.inputs.operation = "m"
+
         # 2. `RegistrationSynQuick` by *ANTS*. It uses nipype interface.
         ants_registration_node = npe.Node(
-            name="antsRegistration", interface=ants.RegistrationSynQuick()
+            name="antsRegistration", interface=ants.Registration()
         )
+        ## image dimension
         ants_registration_node.inputs.dimension = 3
-        ants_registration_node.inputs.transform_type = "r"
+        ## type of transform
+        ants_registration_node.inputs.transforms = ["Rigid"]
+        ants_registration_node.inputs.transform_parameters = [(0.1,)]
+        ## metrics, weights, sampling strategy
+        ants_registration_node.inputs.metric = ["MI"]
+        ants_registration_node.inputs.metric_weight = [1.0]
+        ants_registration_node.inputs.radius_or_number_of_bins = [32]
+        ants_registration_node.inputs.sampling_strategy = ["Regular"]
+        ants_registration_node.inputs.sampling_percentage = [0.25]
+        ## levels parameters
+        ants_registration_node.inputs.shrink_factors = [[8, 4, 2, 1]]
+        ants_registration_node.inputs.smoothing_sigmas = [[3, 2, 1, 0]]
+        ants_registration_node.inputs.sigma_units = ["vox"]
+        ## convergence parameters
+        ants_registration_node.inputs.number_of_iterations = [[1000, 500, 250, 100]]
+        ants_registration_node.inputs.convergence_threshold = [1e-6]
+        ants_registration_node.inputs.convergence_window_size = [10]
+        ## preprocessing
+        ants_registration_node.inputs.winsorize_lower_quantile = 0.005
+        ants_registration_node.inputs.winsorize_upper_quantile = 0.995
+        ants_registration_node.inputs.use_histogram_matching = False
+        ## extra parameters
+        ants_registration_node.inputs.collapse_output_transforms = True
+        ants_registration_node.inputs.verbose = True
 
         # 3. `ApplyTransforms` by *ANTS*. It uses nipype interface. PET to MRI
         ants_applytransform_node = npe.Node(
@@ -438,18 +478,46 @@ class PETLinear(PETPipeline):
                 (self.input_node, init_node, [("pet", "pet")]),
                 # STEP 1:
                 (init_node, clipping_node, [("pet", "input_pet")]),
+                # STEP 1.2 Apply inverse transform
+                (
+                    self.input_node,
+                    ants_applytransform_reversed_node,
+                    [("t1w_to_mni", "transforms")],
+                ),
+                (
+                    self.input_node,
+                    ants_applytransform_reversed_node,
+                    [("t1w", "reference_image")],
+                ),
+                # STEP 1.3 Extract brain
+                (
+                    self.input_node,
+                    ants_extractbrain_node,
+                    [("t1w", "op1")],
+                ),
+                (
+                    ants_applytransform_reversed_node,
+                    ants_extractbrain_node,
+                    [("output_image", "op2")],
+                ),
                 # STEP 2
                 (
                     clipping_node,
                     ants_registration_node,
                     [("output_image", "moving_image")],
                 ),
-                (self.input_node, ants_registration_node, [("t1w", "fixed_image")]),
+                (
+                    ants_extractbrain_node,
+                    ants_registration_node,
+                    [("output_image", "fixed_image")],
+                ),  # todo : rename files ?
                 # STEP 3
                 (
                     ants_registration_node,
                     concatenate_node,
-                    [("out_matrix", "pet_to_t1w_transform")],
+                    [
+                        ("reverse_forward_transforms", "pet_to_t1w_transform")
+                    ],  # todo : see ants reg node ?
                 ),
                 (
                     self.input_node,
