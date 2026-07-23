@@ -124,7 +124,7 @@ class PETLinear(PETPipeline):
         from clinica.utils.ux import print_images_to_process
 
         self.ref_brain_mask = get_mni_template("brain_mask")
-        self.ref_template = get_mni_template("t1")
+        self.ref_t1_template = get_mni_template("t1")
         self.ref_mask = get_suvr_mask(self.parameters["suvr_reference_region"])
 
         # Inputs from BIDS directory
@@ -350,7 +350,7 @@ class PETLinear(PETPipeline):
         clipping_node.inputs.output_dir = self.base_dir
 
         # 1.2 `ApplyTransforms` by *ANTS*. It uses nipype interface. MNI brain mask to T1w space
-
+        # todo : check existence of several applytransforms node
         ants_applytransform_reversed_node = npe.Node(
             name="antsApplyTransformReverseMNItoT1w", interface=ants.ApplyTransforms()
         )
@@ -360,7 +360,8 @@ class PETLinear(PETPipeline):
 
         # 1.3 "ImageMath" by *ANTS*. It uses nipype interface. skull stripping using "AND" operator
         ants_extractbrain_node = npe.Node(
-            name="antsMathImageBrainExtract", interface=ants.ImageMath()
+            name="antsMathImageBrainExtract",
+            interface=ants.ImageMath(),  # todo : replace with homemade function
         )
         ants_extractbrain_node.inputs.operation = "m"
 
@@ -400,13 +401,13 @@ class PETLinear(PETPipeline):
             name="antsApplyTransformPET2MNI", interface=ants.ApplyTransforms()
         )
         ants_applytransform_node.inputs.dimension = 3
-        ants_applytransform_node.inputs.reference_image = self.ref_template
+        ants_applytransform_node.inputs.reference_image = self.ref_t1_template
 
         # 4. Normalize the image (using nifti). It uses custom interface, from utils file
         ants_registration_nonlinear_node = npe.Node(
             name="antsRegistrationT1W2MNI", interface=ants.Registration()
         )
-        ants_registration_nonlinear_node.inputs.fixed_image = self.ref_template
+        ants_registration_nonlinear_node.inputs.fixed_image = self.ref_t1_template
         ants_registration_nonlinear_node.inputs.metric = ["MI"]
         ants_registration_nonlinear_node.inputs.metric_weight = [1.0]
         ants_registration_nonlinear_node.inputs.transforms = ["SyN"]
@@ -429,7 +430,7 @@ class PETLinear(PETPipeline):
             name="antsApplyTransformNonLinear", interface=ants.ApplyTransforms()
         )
         ants_applytransform_nonlinear_node.inputs.dimension = 3
-        ants_applytransform_nonlinear_node.inputs.reference_image = self.ref_template
+        ants_applytransform_nonlinear_node.inputs.reference_image = self.ref_t1_template
 
         if random_seed := self.parameters.get("random_seed", None):
             ants_registration_nonlinear_node.inputs.random_seed = random_seed
@@ -510,14 +511,12 @@ class PETLinear(PETPipeline):
                     ants_extractbrain_node,
                     ants_registration_node,
                     [("output_image", "fixed_image")],
-                ),  # todo : rename files ?
+                ),
                 # STEP 3
                 (
                     ants_registration_node,
                     concatenate_node,
-                    [
-                        ("reverse_forward_transforms", "pet_to_t1w_transform")
-                    ],  # todo : see ants reg node ?
+                    [("reverse_forward_transforms", "pet_to_t1w_transform")],
                 ),
                 (
                     self.input_node,

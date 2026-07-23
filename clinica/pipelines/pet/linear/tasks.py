@@ -67,3 +67,6 @@ def rename_into_caps_task(
         str(transformation_filename_caps),
         pet_filename_in_t1w_caps,
     )
+
+
+# todo : write the task for multiplication

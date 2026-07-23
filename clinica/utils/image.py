@@ -365,11 +365,21 @@ def get_mni_template(modality: str) -> Path:
     FileNotFoundError:
         If the template could not be retrieved locally or remotely.
     """
+    if modality.lower() == "brain_mask":
+        return _get_mni_brain_mask()
     if modality.lower() == "t1":
         return _get_mni_template_t1()
     if modality.lower() == "flair":
         return _get_mni_template_flair()
     raise ValueError(f"No MNI template available for modality {modality}.")
+
+
+def _get_mni_brain_mask() -> Path:
+    return _get_file_locally_or_download(
+        filename="mni_icbm152_t1_tal_nlin_sym_09c_brain_mask.nii",
+        url=None,
+        expected_checksum=None,
+    )  # todo : add it on the inria file system ???
 
 
 def _get_mni_template_t1() -> Path:

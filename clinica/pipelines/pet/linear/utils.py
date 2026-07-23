@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -41,6 +42,7 @@ def concatenate_transforms(
     list :
         Both transform files path in a list.
     """
+    # todo : why list
     return [t1w_to_mni_transform, *pet_to_t1w_transform]
 
 
@@ -289,3 +291,26 @@ def print_end_pipeline(pet: str, final_file):
     from clinica.utils.ux import print_end_image
 
     print_end_image(get_subject_id(pet))
+
+
+def get_skull_stripping_from_reference(
+    image: Path, skull_stripped_reference: Path
+) -> Path:
+    from pathlib import Path
+
+    import nibabel as nib
+    import nilearn as nil
+
+    # todo : test this
+
+    to_strip = nib.load(image)
+    skull_stripped_image = nib.Nifti1Image(
+        to_strip.get_fdata()
+        * nil.image.binarize_img(nib.load(skull_stripped_reference)).get_fdata(),
+        to_strip.affine,
+    )
+    output_path = Path.cwd() / "skull_stripped_t1.nii.gz"
+
+    skull_stripped_image.to_filename(output_path)
+
+    return output_path
