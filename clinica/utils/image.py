@@ -376,10 +376,10 @@ def get_mni_template(modality: str) -> Path:
 
 def _get_mni_brain_mask() -> Path:
     return _get_file_locally_or_download(
-        filename="mni_icbm152_t1_tal_nlin_sym_09c_brain_mask.nii",
-        url=None,
-        expected_checksum=None,
-    )  # todo : add it on the inria file system ???
+        filename="qc_pet_mask_brain.nii.gz",
+        url="https://aramislab.paris.inria.fr/files/data/masks/",
+        expected_checksum="e78a542da49755f5c9ba751b4acca725650396999a671831f0acd8fbf4b898e8",
+    )
 
 
 def _get_mni_template_t1() -> Path:

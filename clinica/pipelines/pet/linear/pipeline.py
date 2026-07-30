@@ -317,7 +317,12 @@ class PETLinear(PETPipeline):
             clip_task,
             perform_suvr_normalization_task,
         )
-        from .utils import concatenate_transforms, init_input_node, print_end_pipeline
+        from .utils import (
+            concatenate_transforms,
+            get_skull_stripping_from_reference,
+            init_input_node,
+            print_end_pipeline,
+        )
 
         init_node = npe.Node(
             interface=nutil.Function(
@@ -358,12 +363,15 @@ class PETLinear(PETPipeline):
         ants_applytransform_reversed_node.inputs.invert_transform_flags = True
         ants_applytransform_reversed_node.inputs.input_image = self.ref_brain_mask
 
-        # 1.3 "ImageMath" by *ANTS*. It uses nipype interface. skull stripping using "AND" operator
+        # 1.3 Homemade skull-stripping function using a t1 (MNI) reference mask, multiplied with the desired image
         ants_extractbrain_node = npe.Node(
-            name="antsMathImageBrainExtract",
-            interface=ants.ImageMath(),  # todo : replace with homemade function
+            interface=nutil.Function(
+                input_names=["image", "skull_stripped_reference_mask"],
+                output_names=["skull_stripped_t1"],
+                function=get_skull_stripping_from_reference,
+            ),
+            name="T1BrainExtract",
         )
-        ants_extractbrain_node.inputs.operation = "m"
 
         # 2. `RegistrationSynQuick` by *ANTS*. It uses nipype interface.
         ants_registration_node = npe.Node(
@@ -494,12 +502,12 @@ class PETLinear(PETPipeline):
                 (
                     self.input_node,
                     ants_extractbrain_node,
-                    [("t1w", "op1")],
+                    [("t1w", "image")],
                 ),
                 (
                     ants_applytransform_reversed_node,
                     ants_extractbrain_node,
-                    [("output_image", "op2")],
+                    [("output_image", "skull_stripped_reference_mask")],
                 ),
                 # STEP 2
                 (
@@ -510,7 +518,7 @@ class PETLinear(PETPipeline):
                 (
                     ants_extractbrain_node,
                     ants_registration_node,
-                    [("output_image", "fixed_image")],
+                    [("skull_stripped_t1", "fixed_image")],
                 ),
                 # STEP 3
                 (

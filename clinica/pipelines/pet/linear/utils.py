@@ -11,6 +11,7 @@ _all__ = [
     "rename_into_caps",
     "print_end_pipeline",
     "clip_img",
+    "get_skull_stripping_from_reference",
 ]
 
 
@@ -294,19 +295,17 @@ def print_end_pipeline(pet: str, final_file):
 
 
 def get_skull_stripping_from_reference(
-    image: Path, skull_stripped_reference: Path
+    image: Path, skull_stripped_reference_mask: Path
 ) -> Path:
     from pathlib import Path
 
     import nibabel as nib
-    import nilearn as nil
 
     # todo : test this
 
     to_strip = nib.load(image)
     skull_stripped_image = nib.Nifti1Image(
-        to_strip.get_fdata()
-        * nil.image.binarize_img(nib.load(skull_stripped_reference)).get_fdata(),
+        to_strip.get_fdata() * nib.load(skull_stripped_reference_mask).get_fdata(),
         to_strip.affine,
     )
     output_path = Path.cwd() / "skull_stripped_t1.nii.gz"
