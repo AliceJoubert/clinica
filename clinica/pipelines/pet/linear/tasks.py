@@ -69,4 +69,11 @@ def rename_into_caps_task(
     )
 
 
-# todo : write the task for multiplication
+def get_skull_stripping_from_reference_task(
+    image: str, skull_stripped_reference_mask: str
+):
+    from pathlib import Path
+
+    from clinica.pipelines.pet.linear.utils import get_skull_stripping_from_reference
+
+    get_skull_stripping_from_reference(Path(image), Path(skull_stripped_reference_mask))

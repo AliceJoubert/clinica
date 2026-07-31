@@ -315,11 +315,11 @@ class PETLinear(PETPipeline):
 
         from .tasks import (
             clip_task,
+            get_skull_stripping_from_reference_task,
             perform_suvr_normalization_task,
         )
         from .utils import (
             concatenate_transforms,
-            get_skull_stripping_from_reference,
             init_input_node,
             print_end_pipeline,
         )
@@ -368,7 +368,7 @@ class PETLinear(PETPipeline):
             interface=nutil.Function(
                 input_names=["image", "skull_stripped_reference_mask"],
                 output_names=["skull_stripped_t1"],
-                function=get_skull_stripping_from_reference,
+                function=get_skull_stripping_from_reference_task,
             ),
             name="T1BrainExtract",
         )
@@ -571,7 +571,7 @@ class PETLinear(PETPipeline):
                 (
                     ants_registration_node,
                     self.output_node,
-                    [("out_matrix", "affine_mat")],
+                    [("forward_transforms", "affine_mat")],
                 ),
                 (
                     normalize_intensity_node,
@@ -629,7 +629,7 @@ class PETLinear(PETPipeline):
                     (
                         ants_registration_node,
                         ants_applytransform_optional_node,
-                        [("out_matrix", "transforms")],
+                        [("forward_transforms", "transforms")],
                     ),
                     (
                         ants_applytransform_optional_node,
