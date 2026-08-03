@@ -374,6 +374,7 @@ class PETLinear(PETPipeline):
         )
 
         # 2. `RegistrationSynQuick` by *ANTS*. It uses nipype interface.
+        # todo : what is the fixed image
         ants_registration_node = npe.Node(
             name="antsRegistration", interface=ants.Registration()
         )
@@ -415,7 +416,9 @@ class PETLinear(PETPipeline):
         ants_registration_nonlinear_node = npe.Node(
             name="antsRegistrationT1W2MNI", interface=ants.Registration()
         )
-        ants_registration_nonlinear_node.inputs.fixed_image = self.ref_t1_template
+        ants_registration_nonlinear_node.inputs.fixed_image = (
+            self.ref_t1_template
+        )  # todo : must be a pathlike object
         ants_registration_nonlinear_node.inputs.metric = ["MI"]
         ants_registration_nonlinear_node.inputs.metric_weight = [1.0]
         ants_registration_nonlinear_node.inputs.transforms = ["SyN"]
