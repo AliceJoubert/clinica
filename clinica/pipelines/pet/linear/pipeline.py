@@ -355,7 +355,6 @@ class PETLinear(PETPipeline):
         clipping_node.inputs.output_dir = self.base_dir
 
         # 1.2 `ApplyTransforms` by *ANTS*. It uses nipype interface. MNI brain mask to T1w space
-        # todo : check existence of several applytransforms node
         ants_applytransform_reversed_node = npe.Node(
             name="antsApplyTransformReverseMNItoT1w", interface=ants.ApplyTransforms()
         )
@@ -370,14 +369,14 @@ class PETLinear(PETPipeline):
                 output_names=["skull_stripped_t1"],
                 function=get_skull_stripping_from_reference_task,
             ),
-            name="T1BrainExtract",
+            name="t1_brain_extraction",
         )
 
-        # 2. `RegistrationSynQuick` by *ANTS*. It uses nipype interface.
-        # todo : what is the fixed image
+        # 2. Registration by *ANTS*. It uses nipype interface. From PET to T1
         ants_registration_node = npe.Node(
             name="antsRegistration", interface=ants.Registration()
         )
+        ants_registration_node.inputs.write_composite_transform = True
         ## image dimension
         ants_registration_node.inputs.dimension = 3
         ## type of transform
@@ -416,9 +415,7 @@ class PETLinear(PETPipeline):
         ants_registration_nonlinear_node = npe.Node(
             name="antsRegistrationT1W2MNI", interface=ants.Registration()
         )
-        ants_registration_nonlinear_node.inputs.fixed_image = (
-            self.ref_t1_template
-        )  # todo : must be a pathlike object
+        ants_registration_nonlinear_node.inputs.fixed_image = self.ref_t1_template
         ants_registration_nonlinear_node.inputs.metric = ["MI"]
         ants_registration_nonlinear_node.inputs.metric_weight = [1.0]
         ants_registration_nonlinear_node.inputs.transforms = ["SyN"]
@@ -527,7 +524,9 @@ class PETLinear(PETPipeline):
                 (
                     ants_registration_node,
                     concatenate_node,
-                    [("reverse_forward_transforms", "pet_to_t1w_transform")],
+                    [
+                        ("inverse_composite_transform", "pet_to_t1w_transform")
+                    ],  # todo : why reverse forward transforms ? !!!
                 ),
                 (
                     self.input_node,
@@ -574,7 +573,7 @@ class PETLinear(PETPipeline):
                 (
                     ants_registration_node,
                     self.output_node,
-                    [("forward_transforms", "affine_mat")],
+                    [("composite_transform", "affine_mat")],
                 ),
                 (
                     normalize_intensity_node,
@@ -632,7 +631,7 @@ class PETLinear(PETPipeline):
                     (
                         ants_registration_node,
                         ants_applytransform_optional_node,
-                        [("forward_transforms", "transforms")],
+                        [("composite_transform", "transforms")],
                     ),
                     (
                         ants_applytransform_optional_node,
