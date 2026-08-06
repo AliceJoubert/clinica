@@ -300,8 +300,6 @@ def get_skull_stripping_from_reference(
 
     import nibabel as nib
 
-    # todo : test this
-
     to_strip = nib.load(image)
     skull_stripped_image = nib.Nifti1Image(
         to_strip.get_fdata() * nib.load(skull_stripped_reference_mask).get_fdata(),
