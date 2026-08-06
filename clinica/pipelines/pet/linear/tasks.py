@@ -81,3 +81,8 @@ def get_skull_stripping_from_reference_task(
             Path(image), Path(skull_stripped_reference_mask)
         )
     )
+
+
+def get_item_from_list(input_list: list, index_in_list: int) -> str:
+    assert len(list) == index_in_list + 1
+    return input_list[index_in_list]

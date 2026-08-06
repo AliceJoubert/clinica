@@ -315,6 +315,7 @@ class PETLinear(PETPipeline):
 
         from .tasks import (
             clip_task,
+            get_item_from_list,
             get_skull_stripping_from_reference_task,
             perform_suvr_normalization_task,
         )
@@ -376,7 +377,6 @@ class PETLinear(PETPipeline):
         ants_registration_node = npe.Node(
             name="antsRegistration", interface=ants.Registration()
         )
-        ants_registration_node.inputs.write_composite_transform = True
         ## image dimension
         ants_registration_node.inputs.dimension = 3
         ## type of transform
@@ -524,9 +524,7 @@ class PETLinear(PETPipeline):
                 (
                     ants_registration_node,
                     concatenate_node,
-                    [
-                        ("inverse_composite_transform", "pet_to_t1w_transform")
-                    ],  # todo : why reverse forward transforms ? !!!
+                    [("reverse_forward_transforms", "pet_to_t1w_transform")],
                 ),
                 (
                     self.input_node,
@@ -573,7 +571,7 @@ class PETLinear(PETPipeline):
                 (
                     ants_registration_node,
                     self.output_node,
-                    [("composite_transform", "affine_mat")],
+                    [(("forward_transforms", get_item_from_list, 0), "affine_mat")],
                 ),
                 (
                     normalize_intensity_node,
@@ -631,7 +629,7 @@ class PETLinear(PETPipeline):
                     (
                         ants_registration_node,
                         ants_applytransform_optional_node,
-                        [("composite_transform", "transforms")],
+                        [("forward_transforms", "transforms")],
                     ),
                     (
                         ants_applytransform_optional_node,
