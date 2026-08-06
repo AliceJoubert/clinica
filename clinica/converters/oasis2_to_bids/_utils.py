@@ -98,7 +98,7 @@ def read_clinical_data(clinical_data_directory: Path) -> pd.DataFrame:
         )
 
     clinical_file = all_files[0]
-    if clinical_file.suffix == ".xlsx":
+    if clinical_file.suffix == ".xlsx":  # todo : other than xlsx ?
         df = pd.read_excel(clinical_file)
     else:
         df = pd.read_csv(clinical_file)
