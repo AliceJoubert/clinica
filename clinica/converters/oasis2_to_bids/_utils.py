@@ -80,29 +80,21 @@ def read_clinical_data(clinical_data_directory: Path) -> pd.DataFrame:
     pd.DataFrame
         One row per MRI session with all clinical variables.
     """
-    csv_files = list(clinical_data_directory.glob("*.csv"))
     xlsx_files = list(clinical_data_directory.glob("*.xlsx"))
-
-    all_files = csv_files + xlsx_files
-    if not all_files:
+    if not xlsx_files:
         raise FileNotFoundError(
             f"No clinical data file found in {clinical_data_directory}.\n"
             "Please place the OASIS-2 demographics file (.csv or .xlsx) "
             "in that directory."
         )
-    if len(all_files) > 1:
+    if len(xlsx_files) > 1:
         raise ValueError(
             f"Multiple clinical data files found in {clinical_data_directory}: "
-            f"{[f.name for f in all_files]}. "
+            f"{[f.name for f in xlsx_files]}. "
             "Only one file is expected."
         )
 
-    clinical_file = all_files[0]
-    if clinical_file.suffix == ".xlsx":  # todo : other than xlsx ?
-        df = pd.read_excel(clinical_file)
-    else:
-        df = pd.read_csv(clinical_file)
-
+    df = pd.read_excel(xlsx_files[0])
     df.columns = df.columns.str.strip()
 
     missing = _REQUIRED_CLINICAL_COLUMNS - set(df.columns)
@@ -132,8 +124,9 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
     """
     records = []
     for img_path in _find_imaging_data(imaging_data_directory):
+        # todo : any way to make this robust ?
         # img_path is relative to imaging_data_directory
-        # e.g.  OAS2_0001_MR1/RAW/OAS2_0001_MR1_mpr-1_anon.img
+        # e.g.  OAS2_0001_MR1/RAW/mpr-1.nifti.img
         session_folder = img_path.parts[0]  # OAS2_0001_MR1
         tokens = session_folder.split("_")  # ['OAS2', '0001', 'MR1']
         if len(tokens) < 3:
@@ -151,6 +144,8 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
             }
         )
 
+        # todo : clinicaio
+
     if not records:
         raise FileNotFoundError(
             f"No ANALYZE (.img) T1w acquisitions found under {imaging_data_directory}.\n"
@@ -161,7 +156,7 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
     df = pd.DataFrame(records)
     df["participant_id"] = df["Subject ID"].apply(
         lambda x: "sub-" + x.replace("_", "")  # OAS2_0001 → sub-OAS20001
-    )
+    )  # todo : BIDS ID here ?
     df["session_id"] = df["session_label"].apply(lambda x: f"ses-{x}")
     return df.drop_duplicates().sort_values(by=["source_path"])
 
@@ -172,6 +167,7 @@ def _find_imaging_data(path_to_source_data: Path) -> Iterable[Path]:
     Files follow the naming convention: mpr-N.nifti.img
     e.g. mpr-1.nifti.img, mpr-2.nifti.img, ...
     """
+    # todo : test
     for image in path_to_source_data.rglob("RAW/mpr-*.img"):
         yield image.relative_to(path_to_source_data)
 
@@ -185,6 +181,7 @@ def _identify_run(source_path: Path) -> str:
     ``mpr-4.nifti.img``  ->  ``run-04``
     """
     import re
+    # todo : test
 
     match = re.search(r"mpr-(\d+)", source_path.name)
     return f"run-{int(match.group(1)):02d}" if match else "run-01"
@@ -220,6 +217,7 @@ def intersect_data(
     df_clinical = df_clinical.copy()
     # Derive session label (MR1, MR2, ...) from the MRI ID column
     # MRI ID format: OAS2_XXXX_MRY
+    # todo : ID ?
     df_clinical["session_label"] = df_clinical["MRI ID"].str.split("_").str[2]
 
     # Inner join: keep only subjects/sessions present in both data sources
@@ -238,7 +236,7 @@ def intersect_data(
                 f"{row.participant_id}_{row.session_id}_{row.run_number}_T1w.nii.gz"
             ),
             axis=1,
-        )
+        )  # todo : clinicaio
     )
 
     # Per-subject baseline record (earliest session) -> participants.tsv
@@ -251,7 +249,7 @@ def intersect_data(
     )
     df_subjects["participant_id"] = df_subjects["Subject ID"].apply(
         lambda x: "sub-" + x.replace("_", "")
-    )
+    )  # todo : ID for OASIS2
 
     return df_merged, df_subjects
 
@@ -273,6 +271,7 @@ def dataset_to_bids(
     sessions     : pd.DataFrame  (index = [participant_id, session_id])
     scans        : pd.DataFrame  (index = BIDS filename)
     """
+    # todo : change name of function
     return (
         _build_participants_df(df_subjects),
         _build_sessions_df(df_merged),
@@ -357,6 +356,8 @@ def _convert_analyze_to_nifti(source_path: Path, target_path: Path) -> None:
     import nibabel as nib
     import numpy as np
 
+    # todo : does this work ?
+
     img = nib.load(str(source_path))
     data = np.squeeze(np.asarray(img.dataobj))
 
@@ -418,6 +419,7 @@ def write_bids(
             write_to_tsv(participants, f)
 
     for participant_id, sessions_group in sessions.groupby("participant_id"):
+        # todo : clinicaio
         sessions_group = sessions_group.droplevel("participant_id")
         sessions_filepath = to / participant_id / f"{participant_id}_sessions.tsv"
         with fs.open(sessions_filepath, "w") as sf:
