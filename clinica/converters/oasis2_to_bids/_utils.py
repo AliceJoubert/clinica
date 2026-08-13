@@ -3,6 +3,8 @@ from typing import Iterable
 
 import pandas as pd
 
+from clinica.converters.study_models import OASIS2BIDSSubjectID
+
 __all__ = [
     "read_clinical_data",
     "read_imaging_data",
@@ -122,14 +124,14 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
         ``source_path``, ``Subject ID``, ``session_label``, ``run_number``,
         ``participant_id``, ``session_id``.
     """
-    from clinica.converters.study_models import OASIS2BIDSSubjectID
     from clinica.utils.stream import cprint
 
     records = []
     for img_path in _find_imaging_data(imaging_data_directory):
         # img_path is relative to imaging_data_directory
         # e.g.  OAS2_0001_MR1/RAW/mpr-1.nifti.img
-        tokens = img_path.parts[0].split("_")  # ['OAS2', '0001', 'MR1']
+        mri_id = img_path.parts[0]
+        tokens = mri_id.split("_")  # ['OAS2', '0001', 'MR1']
         if len(tokens) < 3:
             cprint(
                 f"Invalid image located at {img_path}. Will be skipped for conversion.",
@@ -141,7 +143,9 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
         records.append(
             {
                 "source_path": img_path,
-                "Subject ID": f"{tokens[0]}_{tokens[1]}",  # OAS2_0001
+                "participant_id": OASIS2BIDSSubjectID.from_original_study_id(
+                    f"{tokens[0]}_{tokens[1]}"
+                ),  # todo :remove later if proves to be unnecessary
                 "session_label": tokens[2],  # MR1 | MR2 | ...
                 "run_number": _identify_run(img_path.name),
             }
@@ -155,11 +159,6 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
         )
 
     df = pd.DataFrame(records)
-    df["participant_id"] = df["Subject ID"].apply(
-        lambda x: OASIS2BIDSSubjectID.from_original_study_id(
-            x
-        )  # OAS2_0001 → sub-OAS20001
-    )
     df["session_id"] = df["session_label"].apply(
         lambda x: f"ses-{x}"
     )  # todo : attention MR1 as session id
@@ -220,20 +219,17 @@ def intersect_data(
         ``participants.tsv``.
     """
     df_clinical = df_clinical.copy()
-    # Derive session label (MR1, MR2, ...) from the MRI ID column
-    # MRI ID format: OAS2_XXXX_MRY
-    # todo : ID ?
-    df_clinical["session_label"] = df_clinical["MRI ID"].str.split("_").str[2]
-
-    # Inner join: keep only subjects/sessions present in both data sources
+    # Inner join: keep only subjects/sessions (info in MRI ID OASX_YYYY_MRZ) present in both data sources
     df_merged = df_imaging.merge(
         df_clinical,
-        on=["Subject ID", "session_label"],
+        on=["MRI ID"],
         how="inner",
     )
 
     # Build the target BIDS filename for each acquisition
     # Pattern: sub-OAS2XXXX/ses-MRY/anat/sub-OAS2XXXX_ses-MRY_run-0N_T1w.nii.gz
+    # todo : clinicaio (might just need to remove that later)
+
     df_merged = df_merged.assign(
         filename=lambda df: df.apply(
             lambda row: (
@@ -241,10 +237,11 @@ def intersect_data(
                 f"{row.participant_id}_{row.session_id}_{row.run_number}_T1w.nii.gz"
             ),
             axis=1,
-        )  # todo : clinicaio
+        )
     )
 
     # Per-subject baseline record (earliest session) -> participants.tsv
+    # todo : might need to change that later
     df_subjects = (
         df_clinical.sort_values("session_label")
         .drop_duplicates(subset=["Subject ID"], keep="first")[
@@ -253,8 +250,8 @@ def intersect_data(
         .copy()
     )
     df_subjects["participant_id"] = df_subjects["Subject ID"].apply(
-        lambda x: "sub-" + x.replace("_", "")
-    )  # todo : ID for OASIS2
+        lambda x: OASIS2BIDSSubjectID.from_original_study_id(x)
+    )
 
     return df_merged, df_subjects
 
@@ -411,15 +408,12 @@ def write_bids(
     """
     from fsspec.implementations.local import LocalFileSystem
 
-    from clinica.converters._utils import write_to_tsv
-    from clinica.dataset import BIDSDatasetDescription
+    from clinica.converters._utils import _get_dataset_description, write_to_tsv
     from clinica.utils.stream import cprint
 
     fs = LocalFileSystem(auto_mkdir=True)
 
     with fs.transaction:
-        with fs.open(to / "dataset_description.json", "w") as f:
-            BIDSDatasetDescription(name="OASIS-2").write(to=f)
         with fs.open(to / "participants.tsv", "w") as f:
             write_to_tsv(participants, f)
 

@@ -43,11 +43,17 @@ def convert(
     n_procs:
         Not yet implemented — conversion runs single-threaded.
     """
+    from clinicaio import BIDSDataset, BIDSDatasetType, ImageQuery
+
+    from clinica.converters.study_models import StudyName
     from clinica.utils.stream import cprint
 
-    from .._utils import validate_input_path, write_modality_agnostic_files
+    from .._utils import (
+        _get_dataset_description,
+        validate_input_path,
+        write_modality_agnostic_files,
+    )
     from ..factory import get_converter_name
-    from ..study_models import StudyName
     from ._utils import (
         dataset_to_bids,
         intersect_data,
@@ -74,6 +80,8 @@ def convert(
             lvl="warning",
         )
 
+    bids_dataset = BIDSDataset(bids_dir, _get_dataset_description(StudyName.OASIS2))
+
     cprint("Reading clinical data …", lvl="info")
     df_clinical = read_clinical_data(path_to_clinical)
 
@@ -99,10 +107,13 @@ def convert(
         dataset_directory=path_to_dataset,
     )
 
-    readme_data = {
-        "link": "https://sites.wustl.edu/oasisbrains/",
-        "desc": (
-            "OASIS-2: Longitudinal MRI Data in Nondemented and Demented Older Adults. "
+    from clinica.dataset import BIDSReadme
+
+    bids_readme = (
+        BIDSReadme(
+            name=StudyName.OASIS2,
+            link="https://sites.wustl.edu/oasisbrains/",
+            description="OASIS-2: Longitudinal MRI Data in Nondemented and Demented Older Adults. "
             "This dataset consists of a longitudinal collection of 150 subjects aged "
             "60 to 96, scanned on two or more visits separated by at least one year. "
             "For each subject, 3 or 4 individual T1-weighted MRI scans obtained in a "
@@ -113,14 +124,12 @@ def convert(
             "remained so for subsequent scans, including 51 individuals with mild to "
             "moderate Alzheimer's disease. "
             "14 subjects were characterised as nondemented at their initial visit and "
-            "subsequently characterised as demented at a later visit."
+            "subsequently characterised as demented at a later visit.",
         ),
-    }
-    write_modality_agnostic_files(
-        study_name=StudyName.OASIS2,
-        readme_data=readme_data,
-        bids_dir=bids_dir,
     )
+
+    bids_dataset.write_to_folder(readme=bids_readme.to_str())
+    write_modality_agnostic_files(bids_dataset=bids_dataset)
     cprint("Conversion to BIDS succeeded.", lvl="info")
 
 
