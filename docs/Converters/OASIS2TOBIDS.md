@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD046 -->
-# `oasis3-to-bids` – Conversion of the Cross-sectional MRLongitudinal MRI Data (OASIS-2) to BIDS
+# `oasis2-to-bids` – Conversion of the Cross-sectional MRLongitudinal MRI Data (OASIS-2) to BIDS
 
 ??? quote "Description reproduced from the [OASIS' webpage](https://sites.wustl.edu/oasisbrains/)"
     The Open Access Series of Imaging Studies (OASIS) is a project aimed at making MRI data sets of the brain freely available to the scientific community.
