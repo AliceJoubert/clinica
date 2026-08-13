@@ -306,9 +306,8 @@ class IXIBIDSSubjectID(BIDSSubjectID):
 
 
 class OASIS2BIDSSubjectID(BIDSSubjectID):
-    # todo : to verify
     # todo : is there any unit test to enrich ?
-    """Implementation for OASIS2 of the BIDSSubjectIDClass, allowing to go from the source id XXXX
+    """Implementation for OASIS2 of the BIDSSubjectIDClass, allowing to go from the source id OAS2_XXXX
     to a bids id sub-OAS2XXXX and reciprocally."""
 
     def validate(self, value: str) -> str:
@@ -321,12 +320,12 @@ class OASIS2BIDSSubjectID(BIDSSubjectID):
 
     @classmethod
     def from_original_study_id(cls, study_id: str) -> str:
-        if re.fullmatch(r"OAS2\d{4}", study_id):
-            return "sub-" + study_id
+        if re.fullmatch(r"OAS2_\d{4}", study_id):
+            return "sub-" + study_id.replace("_", "")
         raise ValueError(
             f"Raw OASIS2 subject ID {study_id} is not properly formatted. "
-            "Expecting a 'OAS2XXXX' format."
+            "Expecting a 'OAS2_XXXX' format."
         )
 
     def to_original_study_id(self) -> str:
-        return self.split("-")[1]
+        return "OAS2_" + self.split("OAS2")[1]

@@ -122,29 +122,30 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
         ``source_path``, ``Subject ID``, ``session_label``, ``run_number``,
         ``participant_id``, ``session_id``.
     """
+    from clinica.converters.study_models import OASIS2BIDSSubjectID
+    from clinica.utils.stream import cprint
+
     records = []
     for img_path in _find_imaging_data(imaging_data_directory):
-        # todo : any way to make this robust ?
         # img_path is relative to imaging_data_directory
         # e.g.  OAS2_0001_MR1/RAW/mpr-1.nifti.img
-        session_folder = img_path.parts[0]  # OAS2_0001_MR1
-        tokens = session_folder.split("_")  # ['OAS2', '0001', 'MR1']
+        tokens = img_path.parts[0].split("_")  # ['OAS2', '0001', 'MR1']
         if len(tokens) < 3:
+            cprint(
+                f"Invalid image located at {img_path}. Will be skipped for conversion.",
+                lvl="warning",
+            )
             continue
-        subject_id = f"{tokens[0]}_{tokens[1]}"  # OAS2_0001
-        session_label = tokens[2]  # MR1 | MR2 | ...
-        run_number = _identify_run(img_path)
 
+        # todo : clinicaio
         records.append(
             {
                 "source_path": img_path,
-                "Subject ID": subject_id,
-                "session_label": session_label,
-                "run_number": run_number,
+                "Subject ID": f"{tokens[0]}_{tokens[1]}",  # OAS2_0001
+                "session_label": tokens[2],  # MR1 | MR2 | ...
+                "run_number": _identify_run(img_path.name),
             }
         )
-
-        # todo : clinicaio
 
     if not records:
         raise FileNotFoundError(
@@ -155,10 +156,14 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
 
     df = pd.DataFrame(records)
     df["participant_id"] = df["Subject ID"].apply(
-        lambda x: "sub-" + x.replace("_", "")  # OAS2_0001 → sub-OAS20001
-    )  # todo : BIDS ID here ?
-    df["session_id"] = df["session_label"].apply(lambda x: f"ses-{x}")
-    return df.drop_duplicates().sort_values(by=["source_path"])
+        lambda x: OASIS2BIDSSubjectID.from_original_study_id(
+            x
+        )  # OAS2_0001 → sub-OAS20001
+    )
+    df["session_id"] = df["session_label"].apply(
+        lambda x: f"ses-{x}"
+    )  # todo : attention MR1 as session id
+    return df.drop_duplicates().sort_values(by=["source_path"]).reset_index(drop=True)
 
 
 def _find_imaging_data(path_to_source_data: Path) -> Iterable[Path]:
@@ -168,11 +173,11 @@ def _find_imaging_data(path_to_source_data: Path) -> Iterable[Path]:
     e.g. mpr-1.nifti.img, mpr-2.nifti.img, ...
     """
     # todo : test
-    for image in path_to_source_data.rglob("RAW/mpr-*.img"):
+    for image in path_to_source_data.rglob("OAS2_*_MR*/RAW/mpr-*.img"):
         yield image.relative_to(path_to_source_data)
 
 
-def _identify_run(source_path: Path) -> str:
+def _identify_run(image_file_name: str) -> str:
     """Return a BIDS run label from the mpr-N suffix in the filename.
 
     Examples
@@ -183,7 +188,7 @@ def _identify_run(source_path: Path) -> str:
     import re
     # todo : test
 
-    match = re.search(r"mpr-(\d+)", source_path.name)
+    match = re.search(r"mpr-(\d+)", image_file_name)
     return f"run-{int(match.group(1)):02d}" if match else "run-01"
 
 
