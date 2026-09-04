@@ -2,14 +2,16 @@ from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
+from clinicaio import BIDSDataset
 
 from clinica.converters.study_models import OASIS2BIDSSubjectID
+from clinica.utils.stream import cprint
 
 __all__ = [
     "read_clinical_data",
     "read_imaging_data",
     "intersect_data",
-    "dataset_to_bids",
+    "split_clinical_data",
     "write_bids",
 ]
 
@@ -146,8 +148,9 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
                 "participant_id": OASIS2BIDSSubjectID.from_original_study_id(
                     f"{tokens[0]}_{tokens[1]}"
                 ),  # todo :remove later if proves to be unnecessary
-                "session_label": tokens[2],  # MR1 | MR2 | ...
+                "session_id": "ses-" + tokens[2],  # ses-MR1 | MR2 | ...
                 "run_number": _identify_run(img_path.name),
+                "MRI ID": mri_id,
             }
         )
 
@@ -159,9 +162,6 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
         )
 
     df = pd.DataFrame(records)
-    df["session_id"] = df["session_label"].apply(
-        lambda x: f"ses-{x}"
-    )  # todo : attention MR1 as session id
     return df.drop_duplicates().sort_values(by=["source_path"]).reset_index(drop=True)
 
 
@@ -177,18 +177,18 @@ def _find_imaging_data(path_to_source_data: Path) -> Iterable[Path]:
 
 
 def _identify_run(image_file_name: str) -> str:
-    """Return a BIDS run label from the mpr-N suffix in the filename.
+    """Return a BIDS run number from the mpr-N suffix in the filename.
 
     Examples
     --------
-    ``mpr-1.nifti.img``  ->  ``run-01``
-    ``mpr-4.nifti.img``  ->  ``run-04``
+    ``mpr-1.nifti.img``  ->  ``01``
+    ``mpr-4.nifti.img``  ->  ``04``
     """
     import re
     # todo : test
 
     match = re.search(r"mpr-(\d+)", image_file_name)
-    return f"run-{int(match.group(1)):02d}" if match else "run-01"
+    return f"{int(match.group(1)):02d}" if match else "01"
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +199,7 @@ def _identify_run(image_file_name: str) -> str:
 def intersect_data(
     df_imaging: pd.DataFrame,
     df_clinical: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> pd.DataFrame:
     """Join the imaging inventory with clinical metadata.
 
     Parameters
@@ -214,9 +214,6 @@ def intersect_data(
     df_merged:
         One row per image file, enriched with all clinical variables and
         the target BIDS ``filename``.
-    df_subjects:
-        One row per subject (baseline visit), used to build
-        ``participants.tsv``.
     """
     df_clinical = df_clinical.copy()
     # Inner join: keep only subjects/sessions (info in MRI ID OASX_YYYY_MRZ) present in both data sources
@@ -234,7 +231,7 @@ def intersect_data(
         filename=lambda df: df.apply(
             lambda row: (
                 f"{row.participant_id}/{row.session_id}/anat/"
-                f"{row.participant_id}_{row.session_id}_{row.run_number}_T1w.nii.gz"
+                f"{row.participant_id}_{row.session_id}_run-{row.run_number}_T1w.nii.gz"
             ),
             axis=1,
         )
@@ -242,8 +239,9 @@ def intersect_data(
 
     # Per-subject baseline record (earliest session) -> participants.tsv
     # todo : might need to change that later
+
     df_subjects = (
-        df_clinical.sort_values("session_label")
+        df_clinical.sort_values("MRI ID")
         .drop_duplicates(subset=["Subject ID"], keep="first")[
             ["Subject ID", "M/F", "Hand", "EDUC", "SES"]
         ]
@@ -253,7 +251,7 @@ def intersect_data(
         lambda x: OASIS2BIDSSubjectID.from_original_study_id(x)
     )
 
-    return df_merged, df_subjects
+    return df_merged
 
 
 # ---------------------------------------------------------------------------
@@ -261,9 +259,8 @@ def intersect_data(
 # ---------------------------------------------------------------------------
 
 
-def dataset_to_bids(
+def split_clinical_data(
     df_merged: pd.DataFrame,
-    df_subjects: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Build the three BIDS metadata tables from the merged data.
 
@@ -273,18 +270,17 @@ def dataset_to_bids(
     sessions     : pd.DataFrame  (index = [participant_id, session_id])
     scans        : pd.DataFrame  (index = BIDS filename)
     """
-    # todo : change name of function
     return (
-        _build_participants_df(df_subjects),
+        _build_participants_df(df_merged),
         _build_sessions_df(df_merged),
         _build_scans_df(df_merged),
     )
 
 
-def _build_participants_df(df_subjects: pd.DataFrame) -> pd.DataFrame:
+def _build_participants_df(df_merged: pd.DataFrame) -> pd.DataFrame:
     """One row per subject: sex, handedness, education, socioeconomic status."""
     return (
-        df_subjects[["participant_id", "M/F", "Hand", "EDUC", "SES"]]
+        df_merged[["participant_id", "M/F", "Hand", "EDUC", "SES"]]
         .rename(
             columns={
                 "M/F": "sex",
@@ -293,6 +289,7 @@ def _build_participants_df(df_subjects: pd.DataFrame) -> pd.DataFrame:
                 "SES": "socioeconomic_status",
             }
         )
+        .drop_duplicates()
         .set_index("participant_id", verify_integrity=True)
     )
 
@@ -327,11 +324,9 @@ def _build_sessions_df(df_merged: pd.DataFrame) -> pd.DataFrame:
 
 def _build_scans_df(df_merged: pd.DataFrame) -> pd.DataFrame:
     """One row per image file: maps BIDS filename -> source ANALYZE path."""
-    return (
-        df_merged[["filename", "source_path"]]
-        .drop_duplicates(subset=["filename"])
-        .set_index("filename", verify_integrity=True)
-    )
+    return df_merged[
+        ["participant_id", "session_id", "source_path", "filename", "run_number"]
+    ].set_index(["participant_id", "session_id"])
 
 
 # ---------------------------------------------------------------------------
@@ -408,8 +403,7 @@ def write_bids(
     """
     from fsspec.implementations.local import LocalFileSystem
 
-    from clinica.converters._utils import _get_dataset_description, write_to_tsv
-    from clinica.utils.stream import cprint
+    from clinica.converters._utils import write_to_tsv
 
     fs = LocalFileSystem(auto_mkdir=True)
 
@@ -440,3 +434,72 @@ def write_bids(
         written.append(filename)
 
     return written
+
+
+def write_subject_data(
+    bids_dataset: BIDSDataset,
+    original_subject_id: str,
+    data_df: pd.DataFrame,
+    clinical_data: pd.DataFrame,
+) -> None:
+    """
+    todo
+    """
+    from shutil import copy2
+
+    from clinicaio import DataType, FileExtension, SessionInfo, SubjectInfo
+
+    from clinica.converters.study_models import StudyName, bids_id_factory
+
+    participant_id = bids_id_factory(StudyName.OASIS2).from_original_study_id(
+        original_subject_id
+    )
+    subject = bids_dataset.add_subject(
+        participant_id,
+        # FIXME: include all clinical_data for subject except acq_time, if available
+        SubjectInfo(
+            {
+                "source_id": original_subject_id,
+            }
+        ),
+    )
+
+    clinical_data_for_subject = clinical_data[
+        clinical_data["source_id"] == original_subject_id
+    ]
+    acquisition_time = None
+    if not clinical_data_for_subject.empty:
+        print(
+            "HGDHDSHJS",
+            original_subject_id,
+            "DJ",
+            clinical_data_for_subject["acq_time"],
+        )
+        acquisition_time = str(clinical_data_for_subject["acq_time"].item())
+    session = subject.add_session(
+        SESSION_ID,  # todo
+        SessionInfo(
+            # FIXME: check date format
+            acq_time=acquisition_time,
+            pathology=None,
+            source_id=original_subject_id,
+        ),
+    )
+
+    """Copies all subject data but DTI"""
+    for _, row in data_df[data_df["subject"] == original_subject_id].iterrows():
+        modality = row["modality"]
+        cprint(
+            f"Converting modality {modality} for subject {original_subject_id}.",
+            lvl="debug",
+        )
+
+        img = session.write_image(
+            data_type=DataType.ANAT,
+            nifti_extension=FileExtension.NII_GZ,
+            entities={},
+            suffix=modality,
+            scan_info=None,
+        )  # todo : still needs to write the image
+
+        copy2(row["img_path"], img.get_nifti_image_path())

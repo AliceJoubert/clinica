@@ -43,23 +43,27 @@ def convert(
     n_procs:
         Not yet implemented — conversion runs single-threaded.
     """
-    from clinicaio import BIDSDataset, BIDSDatasetType, ImageQuery
+    from shutil import copy2
+
+    from clinicaio import BIDSDataset, DataType, FileExtension
 
     from clinica.converters.study_models import StudyName
+    from clinica.dataset.bids._clinicaio_migration_utils import (
+        BIDSReadme,
+        _get_dataset_description,
+        write_modality_agnostic_files,
+    )
     from clinica.utils.stream import cprint
 
     from .._utils import (
-        _get_dataset_description,
         validate_input_path,
-        write_modality_agnostic_files,
     )
     from ..factory import get_converter_name
     from ._utils import (
-        dataset_to_bids,
         intersect_data,
         read_clinical_data,
         read_imaging_data,
-        write_bids,
+        split_clinical_data,
     )
 
     path_to_dataset = validate_input_path(path_to_dataset)
@@ -81,6 +85,22 @@ def convert(
         )
 
     bids_dataset = BIDSDataset(bids_dir, _get_dataset_description(StudyName.OASIS2))
+    bids_readme = BIDSReadme(
+        name=StudyName.OASIS2,
+        link="https://sites.wustl.edu/oasisbrains/",
+        description="OASIS-2: Longitudinal MRI Data in Nondemented and Demented Older Adults. "
+        "This dataset consists of a longitudinal collection of 150 subjects aged "
+        "60 to 96, scanned on two or more visits separated by at least one year. "
+        "For each subject, 3 or 4 individual T1-weighted MRI scans obtained in a "
+        "single scan session are included. All subjects are right-handed and include "
+        "both men and women. "
+        "72 subjects were characterised as nondemented throughout the study. "
+        "64 subjects were characterised as demented at their initial visit and "
+        "remained so for subsequent scans, including 51 individuals with mild to "
+        "moderate Alzheimer's disease. "
+        "14 subjects were characterised as nondemented at their initial visit and "
+        "subsequently characterised as demented at a later visit.",
+    )
 
     cprint("Reading clinical data …", lvl="info")
     df_clinical = read_clinical_data(path_to_clinical)
@@ -89,45 +109,39 @@ def convert(
     df_imaging = read_imaging_data(path_to_dataset)
 
     cprint("Merging imaging and clinical data …", lvl="info")
-    df_merged, df_subjects = intersect_data(df_imaging, df_clinical)
+    df_merged = intersect_data(df_imaging, df_clinical)
 
     cprint("Building BIDS metadata tables …", lvl="info")
-    participants, sessions, scans = dataset_to_bids(df_merged, df_subjects)
+    participants, sessions, scans = split_clinical_data(df_merged)
 
     cprint(
-        f"Converting {len(scans)} T1w acquisitions "
+        f"Converting {len(scans)} MPR T1w acquisitions "
         f"for {len(participants)} subjects across {len(sessions)} sessions …",
         lvl="info",
     )
-    write_bids(
-        to=bids_dir,
-        participants=participants,
-        sessions=sessions,
-        scans=scans,
-        dataset_directory=path_to_dataset,
-    )
 
-    from clinica.dataset import BIDSReadme
+    for participant in participants.index:
+        cprint(f"Converting OASIS2 subject {participant} to BIDS", lvl="debug")
+        # todo : maybe dicts would be better than dataframes if you don't do big operations on frames, then you can fill subjectinfo...
 
-    bids_readme = (
-        BIDSReadme(
-            name=StudyName.OASIS2,
-            link="https://sites.wustl.edu/oasisbrains/",
-            description="OASIS-2: Longitudinal MRI Data in Nondemented and Demented Older Adults. "
-            "This dataset consists of a longitudinal collection of 150 subjects aged "
-            "60 to 96, scanned on two or more visits separated by at least one year. "
-            "For each subject, 3 or 4 individual T1-weighted MRI scans obtained in a "
-            "single scan session are included. All subjects are right-handed and include "
-            "both men and women. "
-            "72 subjects were characterised as nondemented throughout the study. "
-            "64 subjects were characterised as demented at their initial visit and "
-            "remained so for subsequent scans, including 51 individuals with mild to "
-            "moderate Alzheimer's disease. "
-            "14 subjects were characterised as nondemented at their initial visit and "
-            "subsequently characterised as demented at a later visit.",
-        ),
-    )
+        subject = bids_dataset.add_subject(participant)
 
+        for session in sessions.loc[participant].index:
+            ses = subject.add_session(session)
+
+            for _, image in scans.loc[participant, session].iterrows():
+                img = ses.write_image(
+                    data_type=DataType.ANAT,
+                    nifti_extension=FileExtension.NII_GZ,
+                    entities={"run": image.run_number},
+                    suffix="T1w",
+                )
+
+                copy2(path_to_dataset / image.source_path, img.get_nifti_image_path())
+
+        subject.populate_sessions_info_from_df(sessions.reset_index(drop=False))
+
+    bids_dataset.populate_subjects_info_from_df(participants.reset_index(drop=False))
     bids_dataset.write_to_folder(readme=bids_readme.to_str())
     write_modality_agnostic_files(bids_dataset=bids_dataset)
     cprint("Conversion to BIDS succeeded.", lvl="info")

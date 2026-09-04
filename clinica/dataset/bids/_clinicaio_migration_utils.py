@@ -1,11 +1,12 @@
 """Contains duplicate utils that are modified due to clinicaio usage. Should replace the utils in the future when all converters are ported."""
 
 import json
-from typing import Optional
+from typing import IO, Optional
 
+from attrs import define
 from clinicaio import BIDSDataset, BIDSDatasetDescription, BIDSDatasetType
 
-from clinica.converters.factory import StudyName
+from clinica.converters.study_models import StudyName
 
 BIDS_VALIDATOR_CONFIG = {
     "ignore": [
@@ -32,6 +33,31 @@ BIDS_VALIDATOR_CONFIG = {
 }
 
 
+@define
+class BIDSReadme:
+    """Model representing the content for a BIDS Readme."""
+
+    name: str
+    link: str
+    description: str
+
+    def write(self, to: IO[str]):
+        to.write(self.to_str())
+
+    def to_str(self) -> str:
+        from importlib.metadata import version
+
+        return (
+            f"This BIDS directory was generated with Clinica v{version('clinica')}.\n"
+            f"More information on https://www.clinica.run\n"
+            f"\n"
+            f"Study: {self.name}\n"
+            f"\n"
+            f"{self.description}\n\n"
+            f"Find more about it and about the data user agreement: {self.link}"
+        )
+
+
 def _write_bidsignore(bids_dataset: BIDSDataset) -> None:
     """Write `.bidsignore` file at the root of the BIDS directory."""
     with bids_dataset.write_root_file(".bidsignore", write_binary=False) as f:
@@ -54,7 +80,7 @@ def write_modality_agnostic_files(
 ) -> None:
     # todo : should replace the original function when all converters migrate
     """
-    Write the files README, dataset_description.json, .bidsignore and .bids-validator-config.json
+    Write the files .bidsignore and .bids-validator-config.json
     at the root of the BIDS directory.
     Parameters
     ----------
