@@ -43,9 +43,10 @@ def convert(
     n_procs:
         Not yet implemented — conversion runs single-threaded.
     """
+
     from shutil import copy2
 
-    from clinicaio import BIDSDataset, DataType, FileExtension
+    from clinicaio import BIDSDataset
 
     from clinica.converters.study_models import StudyName
     from clinica.dataset.bids._clinicaio_migration_utils import (
@@ -61,6 +62,7 @@ def convert(
     from ..factory import get_converter_name
     from ._utils import (
         intersect_data,
+        populate_bids_with_info,
         read_clinical_data,
         read_imaging_data,
         split_clinical_data,
@@ -120,31 +122,14 @@ def convert(
         lvl="info",
     )
 
-    for participant in participants.index:
-        cprint(f"Converting OASIS2 subject {participant} to BIDS", lvl="debug")
-        # todo : maybe dicts would be better than dataframes if you don't do big operations on frames, then you can fill subjectinfo...
+    populate_bids_with_info(bids_dataset, participants, sessions, scans)
 
-        subject = bids_dataset.add_subject(participant)
+    for image in bids_dataset.all_images():
+        copy2(
+            path_to_dataset / image.scan_info["source_path"],
+            image.get_nifti_image_path(),
+        )
 
-        for session in sessions.loc[participant].index:
-            ses = subject.add_session(session)
-
-            for _, image in scans.loc[participant, session].iterrows():
-                img = ses.write_image(
-                    data_type=DataType.ANAT,
-                    nifti_extension=FileExtension.NII_GZ,
-                    entities={"run": image.run_number},
-                    suffix="T1w",
-                )
-
-                copy2(path_to_dataset / image.source_path, img.get_nifti_image_path())
-
-        subject.populate_sessions_info_from_df(sessions.reset_index(drop=False))
-
-    bids_dataset.populate_subjects_info_from_df(participants.reset_index(drop=False))
     bids_dataset.write_to_folder(readme=bids_readme.to_str())
     write_modality_agnostic_files(bids_dataset=bids_dataset)
     cprint("Conversion to BIDS succeeded.", lvl="info")
-
-
-# todo : mention Nikhil
