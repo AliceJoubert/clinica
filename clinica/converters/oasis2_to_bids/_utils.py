@@ -374,7 +374,25 @@ def populate_bids_with_info(
     sessions: pd.DataFrame,
     scans: pd.DataFrame,
 ):
-    """todo"""
+    """
+        Populates the BIDSDataset structure with information from participants, sessions and scans.
+    After being applied each image is described and thus accessible without having to loop over each
+    participant and session.
+
+    Parameters
+    ----------
+    bids_dataset : BIDSDataset
+    participants : pd.DataFrame
+        Contains information that should go into participants.tsv. Indexed on participants.
+    sessions : pd.DataFrame
+        Contains information that should go into sessions.tsv. Indexed on participants and sessions.
+    scans : pd.DataFrame
+        Contains information that should go into scans.tsv. Indexed on participants and sessions.
+
+    Returns
+    -------
+
+    """
     # todo : chance that this would be useful for several datasets
     from clinicaio import DataType, FileExtension, ImageScanInfo
 
