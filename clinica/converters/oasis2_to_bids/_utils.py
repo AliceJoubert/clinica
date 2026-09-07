@@ -12,7 +12,7 @@ __all__ = [
     "read_imaging_data",
     "intersect_data",
     "split_clinical_data",
-    "write_bids",
+    "populate_bids_with_info",
 ]
 
 """
@@ -141,13 +141,12 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
             )
             continue
 
-        # todo : clinicaio
         records.append(
             {
                 "source_path": img_path,
                 "participant_id": OASIS2BIDSSubjectID.from_original_study_id(
                     f"{tokens[0]}_{tokens[1]}"
-                ),  # todo :remove later if proves to be unnecessary
+                ),
                 "session_id": "ses-" + tokens[2],  # ses-MR1 | MR2 | ...
                 "run_number": _identify_run(img_path.name),
                 "MRI ID": mri_id,
@@ -161,8 +160,12 @@ def read_imaging_data(imaging_data_directory: Path) -> pd.DataFrame:
             "OAS2_XXXX_MRY/RAW/mpr-N.nifti.img"
         )
 
-    df = pd.DataFrame(records)
-    return df.drop_duplicates().sort_values(by=["source_path"]).reset_index(drop=True)
+    return (
+        pd.DataFrame(records)
+        .drop_duplicates()
+        .sort_values(by=["source_path"])
+        .reset_index(drop=True)
+    )
 
 
 def _find_imaging_data(path_to_source_data: Path) -> Iterable[Path]:
@@ -223,23 +226,16 @@ def intersect_data(
         how="inner",
     )
 
-    # Build the target BIDS filename for each acquisition
-    # Pattern: sub-OAS2XXXX/ses-MRY/anat/sub-OAS2XXXX_ses-MRY_run-0N_T1w.nii.gz
-    # todo : clinicaio (might just need to remove that later)
-
     df_merged = df_merged.assign(
         filename=lambda df: df.apply(
             lambda row: (
-                f"{row.participant_id}/{row.session_id}/anat/"
-                f"{row.participant_id}_{row.session_id}_run-{row.run_number}_T1w.nii.gz"
+                f"anat/{row.participant_id}_{row.session_id}_run-{row.run_number}_T1w.nii.gz"
             ),
             axis=1,
         )
     )
 
     # Per-subject baseline record (earliest session) -> participants.tsv
-    # todo : might need to change that later
-
     df_subjects = (
         df_clinical.sort_values("MRI ID")
         .drop_duplicates(subset=["Subject ID"], keep="first")[
@@ -353,8 +349,6 @@ def _convert_analyze_to_nifti(source_path: Path, target_path: Path) -> None:
     import nibabel as nib
     import numpy as np
 
-    # todo : does this work ?
-
     img = nib.load(str(source_path))
     data = np.squeeze(np.asarray(img.dataobj))
 
@@ -370,136 +364,39 @@ def _convert_analyze_to_nifti(source_path: Path, target_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Writing the BIDS directory
+# WRITE BIDS
 # ---------------------------------------------------------------------------
 
 
-def write_bids(
-    to: Path,
+def populate_bids_with_info(
+    bids_dataset: BIDSDataset,
     participants: pd.DataFrame,
     sessions: pd.DataFrame,
     scans: pd.DataFrame,
-    dataset_directory: Path,
-) -> list[str]:
-    """Write the full BIDS output directory.
+):
+    """todo"""
+    # todo : chance that this would be useful for several datasets
+    from clinicaio import DataType, FileExtension, ImageScanInfo
 
-    Parameters
-    ----------
-    to:
-        Root of the target BIDS directory (created if absent).
-    participants:
-        Output of :func:`_build_participants_df`.
-    sessions:
-        Output of :func:`_build_sessions_df`.
-    scans:
-        Output of :func:`_build_scans_df`.
-    dataset_directory:
-        Root of the original OASIS-2 imaging directory.
+    for participant in participants.index:
+        cprint(f"Converting OASIS2 subject {participant} to BIDS", lvl="debug")
 
-    Returns
-    -------
-    list[str]
-        List of BIDS filenames that were written.
-    """
-    from fsspec.implementations.local import LocalFileSystem
+        subject = bids_dataset.add_subject(participant)
 
-    from clinica.converters._utils import write_to_tsv
+        for session in sessions.loc[participant].index:
+            ses = subject.add_session(session)
 
-    fs = LocalFileSystem(auto_mkdir=True)
+            for _, image in scans.loc[participant, session].iterrows():
+                ses.write_image(
+                    data_type=DataType.ANAT,
+                    nifti_extension=FileExtension.NII_GZ,
+                    entities={"run": image.run_number},
+                    suffix="T1w",
+                    scan_info=ImageScanInfo(
+                        {"source_path": image.source_path, "run": image.run_number}
+                    ),
+                )
 
-    with fs.transaction:
-        with fs.open(to / "participants.tsv", "w") as f:
-            write_to_tsv(participants, f)
+        subject.populate_sessions_info_from_df(sessions.reset_index(drop=False))
 
-    for participant_id, sessions_group in sessions.groupby("participant_id"):
-        # todo : clinicaio
-        sessions_group = sessions_group.droplevel("participant_id")
-        sessions_filepath = to / participant_id / f"{participant_id}_sessions.tsv"
-        with fs.open(sessions_filepath, "w") as sf:
-            write_to_tsv(sessions_group, sf)
-
-    written = []
-    for filename, metadata in scans.iterrows():
-        source_full = dataset_directory / metadata.source_path
-        target_full = to / filename
-
-        if not source_full.exists():
-            cprint(
-                f"Source file not found, skipping: {source_full}",
-                lvl="warning",
-            )
-            continue
-
-        _convert_analyze_to_nifti(source_full, target_full)
-        written.append(filename)
-
-    return written
-
-
-def write_subject_data(
-    bids_dataset: BIDSDataset,
-    original_subject_id: str,
-    data_df: pd.DataFrame,
-    clinical_data: pd.DataFrame,
-) -> None:
-    """
-    todo
-    """
-    from shutil import copy2
-
-    from clinicaio import DataType, FileExtension, SessionInfo, SubjectInfo
-
-    from clinica.converters.study_models import StudyName, bids_id_factory
-
-    participant_id = bids_id_factory(StudyName.OASIS2).from_original_study_id(
-        original_subject_id
-    )
-    subject = bids_dataset.add_subject(
-        participant_id,
-        # FIXME: include all clinical_data for subject except acq_time, if available
-        SubjectInfo(
-            {
-                "source_id": original_subject_id,
-            }
-        ),
-    )
-
-    clinical_data_for_subject = clinical_data[
-        clinical_data["source_id"] == original_subject_id
-    ]
-    acquisition_time = None
-    if not clinical_data_for_subject.empty:
-        print(
-            "HGDHDSHJS",
-            original_subject_id,
-            "DJ",
-            clinical_data_for_subject["acq_time"],
-        )
-        acquisition_time = str(clinical_data_for_subject["acq_time"].item())
-    session = subject.add_session(
-        SESSION_ID,  # todo
-        SessionInfo(
-            # FIXME: check date format
-            acq_time=acquisition_time,
-            pathology=None,
-            source_id=original_subject_id,
-        ),
-    )
-
-    """Copies all subject data but DTI"""
-    for _, row in data_df[data_df["subject"] == original_subject_id].iterrows():
-        modality = row["modality"]
-        cprint(
-            f"Converting modality {modality} for subject {original_subject_id}.",
-            lvl="debug",
-        )
-
-        img = session.write_image(
-            data_type=DataType.ANAT,
-            nifti_extension=FileExtension.NII_GZ,
-            entities={},
-            suffix=modality,
-            scan_info=None,
-        )  # todo : still needs to write the image
-
-        copy2(row["img_path"], img.get_nifti_image_path())
+    bids_dataset.populate_subjects_info_from_df(participants.reset_index(drop=False))
