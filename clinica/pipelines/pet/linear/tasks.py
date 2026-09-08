@@ -84,5 +84,5 @@ def get_skull_stripping_from_reference_task(
 
 
 def get_item_from_list(input_list: list, index_in_list: int) -> str:
-    assert len(list) == index_in_list + 1
+    assert len(input_list) == index_in_list + 1
     return input_list[index_in_list]
