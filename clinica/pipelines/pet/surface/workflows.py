@@ -84,8 +84,8 @@ def get_wf(
     from pipelines.pet.surface.tasks import (
         compute_average_pet_signal_based_on_annotations_task,
         compute_weighted_mean_surface_task,
+        convert_labels_task,
         get_mid_surface_task,
-        make_label_conversion_task,
         normalize_suvr_task,
         perform_gtmseg_task,
         project_onto_fsaverage_task,
@@ -172,7 +172,7 @@ def get_wf(
         niu.Function(
             input_names=["gtmsegfile", "csv"],
             output_names=["list_of_regions"],
-            function=make_label_conversion_task,
+            function=convert_labels_task,
         ),
         name="conversion_of_labels",
     )
@@ -408,7 +408,7 @@ def get_wf(
     datasink = pe.Node(nio.DataSink(), name="sinker")
 
     datasink.inputs.base_directory = str(
-        get_output_dir(is_longitudinal, caps_dir, subject_id, session_id)
+        get_output_dir(is_longitudinal, Path(caps_dir), subject_id, session_id)
     )
     datasink.inputs.parameterization = True
     datasink.inputs.regexp_substitutions = get_regexp_substitutions(

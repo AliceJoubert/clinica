@@ -19,12 +19,12 @@ def perform_gtmseg_task(
     return str(perform_gtmseg(Path(caps_dir), subject_id, session_id, is_longitudinal))
 
 
-def make_label_conversion_task(gtmseg_file: str, csv_file: str) -> list:
+def convert_labels_task(gtmseg_file: str, csv_file: str) -> list:
     from pathlib import Path
 
-    from clinica.pipelines.pet.surface.utils import make_label_conversion
+    from clinica.pipelines.pet.surface.utils import convert_labels
 
-    return [str(p) for p in make_label_conversion(Path(gtmseg_file), Path(csv_file))]
+    return [str(p) for p in convert_labels(Path(gtmseg_file), Path(csv_file))]
 
 
 def run_apply_inverse_deformation_field_SPM_standalone_task(
@@ -172,7 +172,6 @@ def project_onto_fsaverage_task(
 def get_mid_surface_task(surfaces) -> str:
     from pathlib import Path
 
-    # TODO
     from clinica.pipelines.pet.surface.utils import get_mid_surface
 
     return str(get_mid_surface([Path(surface) for surface in surfaces]))

@@ -1,11 +1,15 @@
 from pathlib import Path
-from typing import Union
+from typing import Sequence
+
+import nibabel as nib
+import numpy as np
+import pandas as pd
 
 from clinica.utils.pet import SUVRReferenceRegion, Tracer
 
 __all__ = [
     "perform_gtmseg",
-    "make_label_conversion",
+    "convert_labels",
     "run_mri_vol2surf",
     "compute_weighted_mean_surface",
     "project_onto_fsaverage",
@@ -42,39 +46,19 @@ def _get_longitudinal_folder_name(input_folder: Path) -> str:
     return longitudinal_folders[0]
 
 
-def get_output_dir(is_longitudinal, caps_dir, subject_id, session_id):
-    # TODO
-    import os
-
-    from clinica.utils.exceptions import ClinicaCAPSError
-
+def get_output_dir(
+    is_longitudinal: bool, caps_dir: Path, subject_id: str, session_id: str
+) -> Path:
+    root = caps_dir / "subjects" / subject_id / session_id
     if is_longitudinal:
-        root = os.path.join(caps_dir, "subjects", subject_id, session_id, "t1")
-        long_folds = [f for f in os.listdir(root) if f.startswith("long-")]
-        if len(long_folds) > 1:
-            raise ClinicaCAPSError(
-                f"[Error] Folder {root} contains {len(long_folds)} folders labeled long-*. Only 1 can exist"
-            )
-        elif len(long_folds) == 0:
-            raise ClinicaCAPSError(
-                f"[Error] Folder {root} does not contains a folder labeled long-*. Have you run t1-freesurfer-longitudinal?"
-            )
-        else:
-            output_dir = os.path.join(
-                caps_dir,
-                "subjects",
-                subject_id,
-                session_id,
-                "pet",
-                long_folds[0],
-                "surface_longitudinal",
-            )
-    else:
-        output_dir = os.path.join(
-            caps_dir, "subjects", subject_id, session_id, "pet", "surface"
+        return (
+            root
+            / "pet"
+            / _get_longitudinal_folder_name(root / "t1")
+            / "surface_longitudinal"
         )
 
-    return output_dir
+    return root / "pet" / "surface"
 
 
 def _get_new_subjects_dir(
@@ -207,23 +191,84 @@ def remove_nan_from_image(image_path: Path) -> Path:
     return output_image_path
 
 
-def make_label_conversion(gtmsegfile, csv):
-    """make_label_conversion is a method used on the segmentation from gtmsegmentation. The purpose is to reduce the
-    number of label. The gathering of labels is specified in a separate file
+def _read_region_source_dst_csv(csv_file: Path) -> pd.DataFrame:
+    expected_columns = ["REGION", "SOURCE", "DST"]
+    if not csv_file.is_file():
+        raise IOError(f"The provided CSV file {csv_file} does not exist.")
+    df = pd.read_csv(csv_file, sep=",")
+    if df.columns.values.tolist() != expected_columns:
+        raise Exception(
+            f"CSV file {csv_file} is not in the correct format. "
+            f"Columns should be: {expected_columns}."
+        )
+    return df
 
-    Args:
-        (string) gtmsegfile   : path to the Nifti volume containing the gtmseg segmentation
-        (string) csv          : path to .csv file that contains 3 columns : REGION SOURCE DST. Separator is , (coma).
 
-    Returns:
-        (list of strings) List of path to the converted volumes according to the .csv file. Each volume is a mask
-        representing an area
+def _truc(
+    csv_file: Path, original_labels: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    df = _read_region_source_dst_csv(csv_file)
+    src_val = np.asanyarray(list(df.SOURCE)).astype("int")
+
+    # Check that each label of original volume (old_label) has a matching transformation in the csv file
+    for label in original_labels:
+        if label not in src_val:
+            raise Exception(
+                f"Could not find label {label} on conversion table. Add it manually in CSV file to correct error"
+            )
+    return src_val, np.asarray(list(df.DST)).astype("int"), list(df.REGION)
+
+
+def convert_labels(gtmseg_file: Path, csv_file: Path) -> list[Path]:
+    """Method used on the segmentation from gtmsegmentation.
+
+    The purpose is to reduce the number of label.
+    The gathering of labels is specified in a separate file.
+
+    Parameters
+    ----------
+    gtmseg_file : Path
+        The path to the Nifti volume containing the gtmseg segmentation.
+
+    csv_file : Path
+        The path to .csv file that contains 3 columns : REGION SOURCE DST.
+        Separator is , (coma).
+
+    Returns
+    -------
+    list of Path :
+        List of path to the converted volumes according to the .csv file.
+        Each volume is a mask representing an area.
     """
-    import os
+    label = nib.load(gtmseg_file)
+    label.header.set_data_dtype("int8")
+    label_data = label.get_fdata(dtype="float32")
+    original_labels = np.unique(label_data).astype("int16")
+    control_volume = np.zeros(label_data.shape)
 
-    import nibabel as nib
-    import numpy
-    import pandas
+    # Instantiation of final volume, with same dtype as original volume
+    new_volume = np.zeros(label_data.shape, dtype=label_data.dtype)
+    # Computing the transformation
+    for i in range(src_val.size):
+        new_volume[label_data == src_val[i]] = dst_val[i]
+    # Get unique list of new label
+    new_labels = np.unique(new_volume)
+    new_labels = new_labels.astype("int")
+    list_of_regions = list()
+
+    # For each label, create a volume file filled with 0s and 1s and save it in current directory under whatever name
+    for i in range(new_labels.size):
+        region_volume = np.zeros(label_data.shape, dtype="uint8")
+        region_volume[new_volume == new_labels[i]] = 1
+        myNifti = nib.Nifti1Image(region_volume, label.affine, header=label.header)
+        current_path = "./" + str(new_labels[i]) + ".nii.gz"
+        current_path = os.path.abspath(current_path)
+        nib.save(myNifti, current_path)
+        list_of_regions.append(current_path)
+        control_volume = control_volume + region_volume
+
+    # The sum of a voxel location across the fourth dimension should be 1
+    sum_voxel_mean = float(sum(sum(sum(control_volume)))) / control_volume.size
 
     def isclose(a, b, rel_tol=1e-9, abs_tol=0.0):
         """Small function designed to measure equality between to floating or double numbers, using 2 thresholds : a
@@ -231,68 +276,6 @@ def make_label_conversion(gtmsegfile, csv):
         """
         return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
-    # Read label from gtmsegfile, change data into integers in order to have no problems when testing equality of labels
-    label = nib.load(gtmsegfile)
-    label.header.set_data_dtype("int8")
-    volume = label.get_fdata(dtype="float32")
-
-    # Unique function gives a list where each label of the volume is listed once
-    old_labels = numpy.unique(volume)
-    old_labels = old_labels.astype("int16")
-
-    # allsum is a control volume (sum of a pixel across the 4 th dimension must be equal to 1)
-    allsum = numpy.zeros(volume.shape)
-
-    # Reading of csv file, raise exception if the pattern REGION, SOURCE, DST is not found
-    if not os.path.isfile(csv):
-        raise Exception("The CSV file does not exist.")
-    convert_lut = pandas.io.parsers.read_csv(csv, sep=",")
-    if list(convert_lut.columns.values) != ["REGION", "SOURCE", "DST"]:
-        raise Exception(
-            f"CSV file {csv} is not in the correct format. Columns should be: REGION, SOURCE, DST"
-        )
-
-    # Extract columns to a list form (values converted into integers)
-    src = list(convert_lut.SOURCE)
-    src_val = numpy.asanyarray(src)
-    src_val = src_val.astype("int")
-
-    dst = list(convert_lut.DST)
-    dst_val = numpy.asarray(dst)
-    dst_val = dst_val.astype("int")
-
-    # Check that each label of original volume (old_label) has a matching transformation in the csv file
-    for i in range(old_labels.size):
-        index = numpy.argwhere(src_val == old_labels[i])
-        # Size 0 means no occurrence found
-        if index.size == 0:
-            raise Exception(
-                f"Could not find label {old_labels[i]} on conversion table. Add it manually in CSV file to correct error"
-            )
-
-    # Instantiation of final volume, with same dtype as original volume
-    new_volume = numpy.zeros(volume.shape, dtype=volume.dtype)
-    # Computing the transformation
-    for i in range(len(src)):
-        new_volume[volume == src_val[i]] = dst_val[i]
-    # Get unique list of new label
-    new_labels = numpy.unique(new_volume)
-    new_labels = new_labels.astype("int")
-    list_of_regions = list()
-
-    # For each label, create a volume file filled with 0s and 1s and save it in current directory under whatever name
-    for i in range(new_labels.size):
-        region_volume = numpy.zeros(volume.shape, dtype="uint8")
-        region_volume[new_volume == new_labels[i]] = 1
-        myNifti = nib.Nifti1Image(region_volume, label.affine, header=label.header)
-        current_path = "./" + str(new_labels[i]) + ".nii.gz"
-        current_path = os.path.abspath(current_path)
-        nib.save(myNifti, current_path)
-        list_of_regions.append(current_path)
-        allsum = allsum + region_volume
-
-    # The sum of a voxel location across the fourth dimension should be 1
-    sum_voxel_mean = float(sum(sum(sum(allsum)))) / allsum.size
     if not isclose(1.0, sum_voxel_mean):
         raise Exception(
             f"Problem during parcellation: the mean sum of a voxel across 4th dimension is {sum_voxel_mean} instead of 1.0"
@@ -819,16 +802,30 @@ def project_onto_fsaverage(
     return out_fsaverage
 
 
-def get_mid_surface(in_surfaces):
-    """get_mid_surface gives the mid surface when dealing with the 7 different surfaces
+def _assert_seven_surfaces(surfaces: Sequence[Path]):
+    if (n_surfaces := len(surfaces)) != 7:
+        raise ValueError(
+            "There should be 7 surfaces at this point of the pipeline. "
+            f"However 'compute_weighted_mean_surface' received {n_surfaces} surfaces. "
+            "Something probably went wrong in prior steps of the pipeline."
+        )
 
-    Args:
-        (list of strings) in_surfaces : List of path to the 7 different surfaces generated by mris_expand
 
-    Returns:
-        (string) Path to the mid surface
+def get_mid_surface(surfaces: Sequence[Path]) -> Path:
+    """Returns the mid-surface when dealing with the 7 different surfaces.
+
+    Parameters
+    ----------
+    surfaces : Sequence of Path
+        The 7 different surfaces generated by mris_expand.
+
+    Returns
+    -------
+    Path :
+        The path to the mid-surface.
     """
-    return in_surfaces[3]
+    _assert_seven_surfaces(surfaces)
+    return surfaces[3]
 
 
 def reformat_surfname(hemi, left_surface, right_surface):
