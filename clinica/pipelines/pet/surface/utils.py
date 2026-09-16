@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 from typing import Sequence
 
@@ -85,34 +86,62 @@ def _get_new_subjects_dir(
     return root / "freesurfer_cross_sectional", subject_id + "_" + session_id
 
 
-def perform_gtmseg(caps_dir, subject_id, session_id, is_longitudinal):
-    """gtmseg is a freesurfer command used to perform a segmentation used in some partial volume correction methods.
+def _expand_environment_variable_into_path(variable_name: str) -> Path:
+    return Path(os.path.expandvars(variable_name))
 
-    Warnings:
-        - This method changes the environment variable $SUBJECTS_DIR (but put
-          the original one back after execution).  This has not been intensely
-          tested whether it can lead to some problems : (for instance if 2
-          subjects are running in parallel)
 
-    Args:
-        (string) caps_dir : CAPS directory.
-        (string) subject_id: The subject_id (something like sub-ADNI002S4213)
-        (string) session_id: The session id ( something like : ses-M012)
-        (bool)   is_longitudinal: If longitudinal processing, subjects_dir must be put elsewhere
-
-    Returns:
-        (string) Path to the segmentation volume : a volume where each voxel
-        has a label (ranging [0 2035] ), see Freesurfer lookup table to see the
-        labels with their corresponding names.
+def _run_gtmseg(freesurfer_id: str):
+    """Run the gtmseg command with provided freesurfer ID.
+    This function creates a standalone node based on Command Line Interface.
+    We simply put the command line we would run on a console.
     """
-    import os
-    import shutil
-
     import nipype.pipeline.engine as pe
     from nipype.interfaces.base import CommandLine
 
+    segmentation = pe.Node(
+        interface=CommandLine(
+            f"gtmseg --s {freesurfer_id} --no-seg-stats --xcerseg",
+            terminal_output="stream",
+        ),
+        name="gtmseg",
+    )
+    segmentation.run()
+
+
+def perform_gtmseg(
+    caps_dir: Path, subject_id: str, session_id: str, is_longitudinal: bool
+):
+    """Perform Freesurfer gtmseg.
+    It is a command used to perform a segmentation used in some partial volume correction methods.
+
+    Parameters
+    ----------
+    caps_dir : Path
+        CAPS directory
+    subject_id : str
+        The subject ID. Example: 'sub-ADNI002S4213'.
+    session_id : str
+        The session ID. Example: 'ses-M012'.
+    is_longitudinal : bool
+        If longitudinal processing, subjects_dir must be put elsewhere
+
+    Returns
+    -------
+    Path :
+        Path to the segmentation volume : a volume where each voxel
+        has a label (ranging [0 2035] ), see Freesurfer lookup table to see the
+        labels with their corresponding names.
+
+    Warnings
+    --------
+    This method changes the environment variable $SUBJECTS_DIR (but put
+    the original one back after execution). This has not been intensely
+    tested whether it can lead to some problems : (for instance if 2
+    subjects are running in parallel)
+    """
+
     # Old subject_dir is saved for later
-    subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
+    subjects_dir_backup = _expand_environment_variable_into_path("$SUBJECTS_DIR")
 
     root_env, freesurfer_id = _get_new_subjects_dir(
         is_longitudinal, caps_dir, subject_id, session_id
@@ -121,48 +150,31 @@ def perform_gtmseg(caps_dir, subject_id, session_id, is_longitudinal):
     # Set the new subject dir for the function to work properly
     os.environ["SUBJECTS_DIR"] = str(root_env)
 
-    if not os.path.exists(
-        os.path.join(
-            os.path.expandvars("$SUBJECTS_DIR"), freesurfer_id, "mri", "gtmseg.mgz"
-        )
-    ):
-        # Creation of standalone node based on Command Line Interface.
-        # We simply put the command line we would run on a console
-        segmentation = pe.Node(
-            interface=CommandLine(
-                "gtmseg --s " + freesurfer_id + " --no-seg-stats --xcerseg",
-                terminal_output="stream",
-            ),
-            name="gtmseg",
-        )
-        segmentation.run()
+    freesurfer_mri_folder = (
+        _expand_environment_variable_into_path("$SUBJECTS_DIR") / freesurfer_id / "mri"
+    )
+    gtmseg_file_path = freesurfer_mri_folder / "gtmseg.mgz"
+
+    if not gtmseg_file_path.exists():
+        _run_gtmseg(freesurfer_id)
 
     # We specify the out file to be in the current directory of execution (easy for us to look at it afterward in the
     # working directory). We copy then the file.
-    out_file = os.path.abspath("./gtmseg.mgz")
+    out_file = Path.cwd() / "gtmseg.mgz"
     shutil.copy(
-        os.path.join(
-            os.path.expandvars("$SUBJECTS_DIR"), freesurfer_id, "mri", "gtmseg.mgz"
-        ),
+        gtmseg_file_path,
         out_file,
     )
 
     # Remove bunch of files created during segmentation in caps dir and not needed
-    gtmsegcab = os.path.join(
-        os.path.expandvars("$SUBJECTS_DIR"), freesurfer_id, "mri", "gtmseg.ctab"
-    )
-    if os.path.exists(gtmsegcab):
-        os.remove(gtmsegcab)
-
-    gtmseglta = os.path.join(
-        os.path.expandvars("$SUBJECTS_DIR"), freesurfer_id, "mri", "gtmseg.lta"
-    )
-    if os.path.exists(gtmseglta):
-        os.remove(gtmseglta)
+    for filename in ("gtmseg.ctab", "gtmseg.lta"):
+        filepath = freesurfer_mri_folder / filename
+        if filepath.exists():
+            filepath.unlink()
 
     # Set back the SUBJECT_DIR environment variable of the user
-    os.environ["SUBJECTS_DIR"] = subjects_dir_backup
-    return out_file
+    os.environ["SUBJECTS_DIR"] = str(subjects_dir_backup)
+    return out_file  # todo : could it be gtmseg_file_path
 
 
 def remove_nan_from_image(image_path: Path) -> Path:
@@ -250,6 +262,7 @@ def _are_almost_equal(a: float, b: float, rel_tol=1e-9, abs_tol=0.0) -> bool:
 
 def _check_sum(control_image_data: np.ndarray):
     """The sum of a voxel location across the fourth dimension should be 1."""
+    # todo : in test do both cases
     sum_voxel_mean = float(sum(sum(sum(control_image_data)))) / control_image_data.size
     if not _are_almost_equal(1.0, sum_voxel_mean):
         raise ValueError(
@@ -464,7 +477,6 @@ def _running_mris_expand_with_subprocess(cmd: str) -> None:
 def _check_mri_expand_file_location_then_move(
     working_directory: str, input_file_location: str
 ) -> str:
-    import shutil
     from pathlib import Path
 
     filename = Path(input_file_location).name
@@ -543,8 +555,6 @@ def run_mri_surf2surf(
     Returns:
         (string) Path to the converted surface in current directory
     """
-    import os
-    import shutil
     import subprocess
     import sys
 
@@ -620,8 +630,6 @@ def run_mri_vol2surf(
     Returns:
         (string) Path to the data projected onto the surface
     """
-    import os
-    import shutil
     import subprocess
     import sys
 
@@ -767,9 +775,6 @@ def project_onto_fsaverage(
     Returns:
         (string) Path to the data averaged
     """
-    import os
-    import shutil
-
     from nipype.interfaces.freesurfer import MRISPreproc
 
     subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
