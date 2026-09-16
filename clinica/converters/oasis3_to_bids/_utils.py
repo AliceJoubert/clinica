@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 import pandas as pd
-from coverage.files import source_exists
 
 from clinica.utils.stream import cprint, log_and_raise
 
