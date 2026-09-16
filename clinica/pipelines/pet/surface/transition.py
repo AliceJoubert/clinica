@@ -16,62 +16,6 @@ def reformat_surfname(
         return right_surface
 
 
-def compute_weighted_mean_surface(
-    surfaces: Sequence[Path], output_dir: Optional[Path] = None
-) -> Path:
-    """Compute a weighted average at each node of the surface.
-
-    The weight are defined by a normal distribution (centered on the mid surface).
-
-    Parameters
-    ----------
-    surfaces : Sequence of Path
-        The paths to the data projected on the 7 surfaces (35 to 65 % of thickness) at each nodes.
-
-    output_dir : Path, optional
-        The path to the output folder in which to write the output files.
-        If not provided, the files will be written in the current directory.
-
-    Returns
-    -------
-    Path :
-        The path to the data averaged.
-    """
-    import nibabel as nib
-
-    _assert_seven_surfaces(surfaces)
-    hemisphere = HemiSphere(surfaces[0].name[0:2])
-    out_surface = (
-        output_dir or Path.cwd()
-    ) / f"{hemisphere.value}.averaged_projection_on_cortical_surface.mgh"
-    nib.save(_build_weighted_mean_surface_image(surfaces), out_surface)
-
-    return out_surface
-
-
-def _build_weighted_mean_surface_image(surfaces: Sequence[Path]) -> nib.MGHImage:
-    import nibabel as nib
-    import numpy as np
-
-    # sample only to get dimension
-    sample = nib.load(surfaces[0])
-    data_normalized = np.zeros(sample.header.get_data_shape())
-    for surface, coefficient in zip(
-        surfaces, _get_coefficient_for_normal_repartition()
-    ):
-        current_surf = nib.load(surface)
-        data_normalized += current_surf.get_fdata(dtype="float32") * coefficient
-    # data_normalized = np.atleast_3d(data_normalized)
-    return nib.MGHImage(data_normalized, affine=sample.affine, header=sample.header)
-
-
-def _get_coefficient_for_normal_repartition() -> (
-    Tuple[float, float, float, float, float, float, float]
-):
-    """TODO: Find out where do these numbers come from.."""
-    return 0.1034, 0.1399, 0.1677, 0.1782, 0.1677, 0.1399, 0.1034
-
-
 def project_onto_fsaverage(
     projection: Path,
     subject_id: str,

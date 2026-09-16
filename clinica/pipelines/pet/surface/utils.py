@@ -35,6 +35,9 @@ __all__ = [
 ]
 
 # TODO : check all os.environ / expand var calls or functions
+# TODO : any way to break down that file ?
+# TODO : are pipelines / utils used ?
+# TODO : are all functions well named ?
 
 
 def _get_longitudinal_folder_name(input_folder: Path) -> str:
@@ -754,47 +757,47 @@ def run_mri_vol2surf(
     return output_file
 
 
-def compute_weighted_mean_surface(in_surfaces):
-    """weighted_mean make a weighted average at each node of the surface. The weight are defined by a normal
-    distribution (centered on the mid surface)
-
-    Args:
-        (list of strings) in_surfaces : List of path to the data projected on the 7 surfaces (35 to 65 % of thickness)
-            at each nodes)
-
-    Returns:
-        (string) Path to the data averaged
-    """
-    import os
-
-    import nibabel as nib
-    import numpy as np
-
-    # coefficient for normal repartition
-    coefficient = [0.1034, 0.1399, 0.1677, 0.1782, 0.1677, 0.1399, 0.1034]
-
+def _build_weighted_mean_surface_image(surfaces: Sequence[Path]) -> nib.MGHImage:
     # sample only to get dimension
-    sample = nib.load(in_surfaces[0])
+    sample = nib.load(surfaces[0])
     data_normalized = np.zeros(sample.header.get_data_shape())
-
-    if len(in_surfaces) != 7:
-        raise Exception(
-            f"There should be 7 surfaces at this point of the pipeline, but found {len(in_surfaces)}, something went wrong..."
-        )
-
-    for i in range(len(in_surfaces)):
-        current_surf = nib.load(in_surfaces[i])
-        data_normalized += current_surf.get_fdata(dtype="float32") * coefficient[i]
-
-    # hemisphere name will always be in our case the first 2 letters of the filename
-    hemi = os.path.basename(in_surfaces[0])[0:2]
+    for surface, coefficient in zip(
+        surfaces, _get_coefficient_for_normal_repartition()
+    ):
+        current_surf = nib.load(surface)
+        data_normalized += current_surf.get_fdata(dtype="float32") * coefficient
     # data_normalized = np.atleast_3d(data_normalized)
-    hemi_projection = nib.MGHImage(
-        data_normalized, affine=sample.affine, header=sample.header
+    return nib.MGHImage(data_normalized, affine=sample.affine, header=sample.header)
+
+
+def _get_coefficient_for_normal_repartition() -> (
+    tuple[float, float, float, float, float, float, float]
+):
+    """TODO: Find out where do these numbers come from.."""
+    return 0.1034, 0.1399, 0.1677, 0.1782, 0.1677, 0.1399, 0.1034
+
+
+def compute_weighted_mean_surface(surfaces: Sequence[Path]) -> Path:
+    """Compute a weighted average at each node of the surface.
+
+    The weight are defined by a normal distribution (centered on the mid surface).
+
+    Parameters
+    ----------
+    surfaces : Sequence of Path
+        The paths to the data projected on the 7 surfaces (35 to 65 % of thickness) at each nodes.
+
+    Returns
+    -------
+    Path :
+        The path to the data averaged.
+    """
+    _assert_seven_surfaces(surfaces)
+    out_surface = (
+        Path.cwd()
+        / f"{HemiSphere(surfaces[0].name[0:2]).value}.averaged_projection_on_cortical_surface.mgh"
     )
-    out_surface = "./" + hemi + ".averaged_projection_on_cortical_surface.mgh"
-    out_surface = os.path.abspath(out_surface)
-    nib.save(hemi_projection, out_surface)
+    nib.save(_build_weighted_mean_surface_image(surfaces), out_surface)
 
     return out_surface
 
