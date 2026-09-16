@@ -1,9 +1,8 @@
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence
 
 import nibabel as nib
 import numpy as np
@@ -372,7 +371,7 @@ def _call_spm_standalone(script_location: Path, expected_output_location: Path) 
 
     # TODO : This might not even be needed with cmd line setting done before in the pipeline
     spm_file = _get_real_spm_standalone_file(get_spm_standalone_home())
-    cmdline = f"$SPMSTANDALONE_HOME/{spm_file} $MCR_HOME batch {str(script_location)}"
+    cmdline = f"$SPMSTANDALONE_HOME/{spm_file} $MCR_HOME batch {script_location}"
 
     run_command_as_subprocess(
         "runApplyInverseDeformationField_SPM_standalone",
@@ -487,86 +486,84 @@ def normalize_suvr(pet_path: Path, mask: Path) -> Path:
     return suvr_filename
 
 
-def _setting_mris_expand_cmd(in_surface) -> str:
-    from pathlib import Path
-    from sys import platform
+def _make_freesurfer_command_mac_compatible(command: str) -> str:
+    return "export DYLD_LIBRARY_PATH=$FREESURFER_HOME/lib/gcc/lib && " + command
 
-    cmd = (
-        "mris_expand -thickness -N 13 "
-        + in_surface
-        + " 0.65 "
-        + Path(in_surface).name
-        + "_exp-"
-    )
+
+def _setting_mris_expand_cmd(in_surface: Path) -> str:
+    import platform
+
+    cmd = f"mris_expand -thickness -N 13 {in_surface} 0.65 {in_surface.name}_exp-"
     # If system is MacOS, this export command must be run just before the mri_vol2surf command to bypass MacOs security
-    if platform == "darwin":
-        cmd = "export DYLD_LIBRARY_PATH=$FREESURFER_HOME/lib/gcc/lib && " + cmd
+    if platform.system().lower().startswith("darwin"):
+        cmd = _make_freesurfer_command_mac_compatible(cmd)
 
     return cmd
 
 
-def _running_mris_expand_with_subprocess(cmd: str) -> None:
-    run_command_as_subprocess("mris_expand", cmd)
+def _get_numbered_exp_filename(filename: Path, number: int) -> Path:
+    # Expects a filename like Path.cwd() / lh.white to output Path.cwd() / lh.white_exp-00N
+    # todo : to test
+    return filename.with_name(f"{filename.name}_exp-{str(number).zfill(3)}")
 
 
 def _check_mri_expand_file_location_then_move(
-    working_directory: str, input_file_location: str
-) -> str:
-    from pathlib import Path
-
-    filename = Path(input_file_location).name
-    expected_location = f"{working_directory}/{filename}_exp-"
-
-    if Path(input_file_location + "_exp-000").is_file():
-        for i in range(0, 14):
-            identifier = str(i).zfill(3)
+    working_directory: Path, input_file_location: Path
+) -> Path:
+    expected_location = working_directory / input_file_location.name
+    if _get_numbered_exp_filename(input_file_location, 0).is_file():
+        for n in range(0, 14):
+            _get_numbered_exp_filename(input_file_location, n)
             shutil.move(
-                f"{input_file_location}_exp-" + identifier,
-                expected_location + identifier,
+                _get_numbered_exp_filename(input_file_location, n),
+                _get_numbered_exp_filename(expected_location, n),
             )
-
     return expected_location
 
 
-def run_mris_expand(in_surface):
-    """mris_expand is using the freesurfer function of the same name. It expands the white input surface toward the pial,
-    generating 7 surfaces at 35%, 40%, 45%, 50%, 55%, 60%, 65% of thickness.
+def run_mris_expand(surface: Path) -> list[Path]:
+    """Make a subprocess call to the freesurfer mris_expand function.
 
-    Args:
-        (string) in_surface : Path to the input white surface, but must be named lh.white or rh.white, and the folder
-            containing the surface file must also have ?h.pial, ?.sphere, ?h.thickness (freesurfer surf folder)
+    Expands the white input surface toward the pial, generating 7 surfaces at
+    35%, 40%, 45%, 50%, 55%, 60%, 65% of thickness.
 
-    Returns:
-        (list of strings) List of path to the generated surfaces
+    Parameters
+    ----------
+    surface : Path
+        The path to the input white surface.
+        Must be named 'lh.white' or 'rh.white'.
+        The folder containing the surface file must also have
+        '?h.pial', '?.sphere', '?h.thickness' (freesurfer 'surf' folder).
+
+    Returns
+    -------
+    List of Path :
+        List of path to the generated surfaces.
+
+    Notes
+    -----
+    'mris_expand' write results where the script is executed
+
+    -N is a hidden parameter (not documented) that allows the user to specify
+    the number of surface generated between source and final target surface.
+    Here target is 65% of thickness, with 13 surfaces.
+    Then we only keep the surfaces we are interested in.
     """
-    import os
-
-    from pipelines.pet.surface.utils import (  # noqa
-        _check_mri_expand_file_location_then_move,
-        _running_mris_expand_with_subprocess,
-        _setting_mris_expand_cmd,
-    )
-
     from clinica.utils.stream import cprint
 
-    # RQ 1 : mris_expand write results where the script is executed
-    # RQ 2 : -N is a hidden parameter (not documented) that allows the user to specify the number of surface generated between
-    # source and final target surface. Here target is 65% of thickness, with 13 surfaces. Then we only keep the surfaces
-    # we are interested in.
-
-    _running_mris_expand_with_subprocess(_setting_mris_expand_cmd(in_surface))
+    run_command_as_subprocess("mris_expand", _setting_mris_expand_cmd(surface))
 
     # Remove useless surfaces (0%, 5%, 10%, 15%, 20%, 25% and 30% of thickness)
     cprint(msg="Removing unnecessary mris_expands outputs (000 to 007)", lvl="debug")
 
-    out_file = _check_mri_expand_file_location_then_move(
-        working_directory=os.getcwd(), input_file_location=in_surface
+    expected_location = _check_mri_expand_file_location_then_move(
+        working_directory=Path.cwd(), input_file_location=surface
     )
 
-    for file in [out_file + str(x).zfill(3) for x in range(0, 7)]:
-        os.remove(file)
+    for file in [_get_numbered_exp_filename(expected_location, x) for x in range(0, 7)]:
+        file.unlink()
 
-    return [os.path.abspath(out_file + str(x).zfill(3)) for x in range(7, 14)]
+    return [_get_numbered_exp_filename(expected_location, x) for x in range(7, 14)]
 
 
 def run_mri_surf2surf(

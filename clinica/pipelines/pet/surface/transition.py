@@ -83,43 +83,11 @@ def reformat_surfname(
 
 
 def run_mris_expand(surface: Path, output_dir: Optional[Path] = None) -> List[Path]:
-    """Make a subprocess call to the freesurfer mris_expand function.
-
-    Expands the white input surface toward the pial, generating 7 surfaces at
-    35%, 40%, 45%, 50%, 55%, 60%, 65% of thickness.
-
-    Parameters
-    ----------
-    surface : Path
-        The path to the input white surface.
-        Must be named 'lh.white' or 'rh.white'.
-        The folder containing the surface file must also have
-        '?h.pial', '?.sphere', '?h.thickness' (freesurfer 'surf' folder).
-
-    output_dir : Path, optional
-        The path to the output folder in which to write the output files.
-        If not provided, the files will be written in the current directory.
-
-    Returns
-    -------
-    List of Path :
-        List of path to the generated surfaces.
-
-    Notes
-    -----
-    There is a bug in mris_expand : you are not allowed to write the surfaces
-    elsewhere than in the surf folder.
-    -N is a hidden parameter (not documented) that allows the user to specify
-    the number of surface generated between source and final target surface.
-    Here target is 65% of thickness, with 13 surfaces.
-    Then we only keep the surfaces we are interested in.
-    """
     from clinica.utils.filemanip import move_file
     from clinica.utils.stream import cprint
 
     output_dir = output_dir or Path.cwd()
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
+
     out_file = surface.parent / f"{surface.name}_exp-"
     _run_mri_expand_as_subprocess(surface, out_file)
     # Move surface file to the output directory
