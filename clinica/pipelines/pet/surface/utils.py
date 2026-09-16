@@ -176,7 +176,7 @@ def perform_gtmseg(
 
     # Set back the SUBJECT_DIR environment variable of the user
     os.environ["SUBJECTS_DIR"] = str(subjects_dir_backup)
-    return out_file  # todo : could it be gtmseg_file_path
+    return out_file  # todo : could it be gtmseg_file_path ?
 
 
 def remove_nan_from_image(image_path: Path) -> Path:
@@ -265,6 +265,7 @@ def _are_almost_equal(a: float, b: float, rel_tol=1e-9, abs_tol=0.0) -> bool:
 def _check_sum(control_image_data: np.ndarray):
     """The sum of a voxel location across the fourth dimension should be 1."""
     # todo : in test do both cases
+    # todo : fourth dimension ? can it be achieved with np.sum ?
     sum_voxel_mean = float(sum(sum(sum(control_image_data)))) / control_image_data.size
     if not _are_almost_equal(1.0, sum_voxel_mean):
         raise ValueError(
@@ -434,48 +435,66 @@ def run_apply_inverse_deformation_field_SPM_standalone(
     return output_file
 
 
-def normalize_suvr(pet_path, mask):
-    """normalize_suvr is a way of getting suvr from your pet image, based on the segmentation performed by
-    gtmsegmentation. The Standard Uptake Value ratio is computed by dividing the whole PET volume by the mean value
-    observed in the pons.
+def _get_eroded_mask_and_size(mask: Path) -> tuple[np.ndarray, int]:
+    from clinica.utils.exceptions import ClinicaImageError
 
-    Args:
-        (string) pet_path     : path to the Nifti volume containing PET scan, realigned on upsampled T1
-        (string) mask         : mask of the pons (18FFDG) or pons+cerebellum (18FAV45) already eroded
-
-    Returns:
-        (string) Path to the suvr normalized volume in the current directory
-    """
-    import os
-
-    import nibabel as nib
-
-    # Load mask
     eroded_mask_nifti = nib.load(mask)
     eroded_mask = eroded_mask_nifti.get_fdata(dtype="float32")
     eroded_mask = eroded_mask > 0
 
-    # Load PET data (they must be in gtmsegspace, or same space as label file)
-    pet = nib.load(pet_path)
-    pet_data = pet.get_fdata(dtype="float32")
-
-    # check that eroded mask is not null
-    mask_size = sum(sum(sum(eroded_mask)))
-    if mask_size == 0:
-        raise Exception(
-            "Number of non-zero value of mask is 0. A problem occurred when moving the eroded mask from MNI to gtmsegspace"
+    if (mask_size := np.sum(eroded_mask)) == 0:
+        raise ClinicaImageError(
+            f"The eroded mask located at {mask} contains only zero values. "
+            "A problem likely occurred when moving the eroded mask from MNI to gtmsegspace."
         )
+    return eroded_mask, mask_size
+
+
+def _get_mean_pet_activity_within_mask(mask: Path, pet_data: np.ndarray) -> float:
+    eroded_mask, mask_size = _get_eroded_mask_and_size(mask)
+    return np.sum(eroded_mask * pet_data) / mask_size
+
+
+def normalize_suvr(pet_path: Path, mask: Path) -> Path:
+    """Get SUVR from pet image.
+
+    Based on the segmentation performed by gtmsegmentation.
+    The Standard Uptake Value ratio is computed by dividing the
+    whole PET volume by the mean value observed in the pons.
+
+    Parameters
+    ----------
+    pet_image : Path
+        The path to the Nifti volume containing PET scan, realigned on up-sampled T1.
+
+    mask : Path
+        The path to the mask of the pons (18FFDG) or pons+cerebellum (18FAV45) already eroded.
+
+    Returns
+    -------
+    Path :
+        The path to the SUVR normalized volume in the current directory.
+
+    Raises
+    ------
+    ClinicaImageError :
+        If the provided eroded mask contains only zero values.
+    """
+    # Load PET data (they must be in gtmsegspace, or same space as label file)
+    pet_image_nifti = nib.load(pet_path)
+    pet_data = pet_image_nifti.get_fdata(dtype="float32")
 
     # Mask unwanted values to determine mean uptake value
-    pons_pet_activity = eroded_mask * pet_data
-    mean_pons_pet_activity = sum(sum(sum(pons_pet_activity))) / mask_size
+    mean_pons_pet_activity = _get_mean_pet_activity_within_mask(mask, pet_data)
 
     # Then normalize PET data by this mean activity
-    suvr_pet_data = pet_data / mean_pons_pet_activity
-    suvr = nib.Nifti1Image(suvr_pet_data, pet.affine, header=pet.header)
-    suvr_filename = "suvr_" + os.path.basename(pet_path)
-    suvr_filename = os.path.abspath("./" + suvr_filename)
-    nib.save(suvr, suvr_filename)
+    suvr_image_nifti = nib.Nifti1Image(
+        pet_data / mean_pons_pet_activity,
+        pet_image_nifti.affine,
+        header=pet_image_nifti.header,
+    )
+    suvr_filename = Path.cwd() / f"suvr_{pet_path.name}"
+    nib.save(suvr_image_nifti, suvr_filename)
     return suvr_filename
 
 

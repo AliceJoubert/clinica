@@ -73,67 +73,6 @@ def perform_gtmseg(
     return gtmseg_filename
 
 
-def normalize_suvr(
-    pet_image: Path, mask: Path, output_dir: Optional[Path] = None
-) -> Path:
-    """Get SUVR from pet image.
-
-    Based on the segmentation performed by gtmsegmentation.
-    The Standard Uptake Value ratio is computed by dividing the
-    whole PET volume by the mean value observed in the pons.
-
-    Parameters
-    ----------
-    pet_image : Path
-        The path to the Nifti volume containing PET scan, realigned on up-sampled T1.
-
-    mask : Path
-        The path to the mask of the pons (18FFDG) or pons+cerebellum (18FAV45) already eroded.
-
-    output_dir : Path, optional
-        The directory in which to write the SUVR image.
-        If not provided, it will be written in the current directory.
-
-    Returns
-    -------
-    Path :
-        The path to the SUVR normalized volume in the current directory.
-
-    Raises
-    ------
-    ClinicaImageError :
-        If the provided eroded mask contains only zero values.
-    """
-    import nibabel as nib
-
-    from clinica.utils.exceptions import ClinicaImageError
-
-    eroded_mask_nifti = nib.load(mask)
-    eroded_mask = eroded_mask_nifti.get_fdata(dtype="float32")
-    eroded_mask = eroded_mask > 0
-    if (mask_size := np.sum(eroded_mask)) == 0:
-        raise ClinicaImageError(
-            f"The eroded mask located at {mask} contains only zero values. "
-            "A problem likely occurred when moving the eroded mask from MNI to gtmsegspace."
-        )
-    # Load PET data (they must be in gtmsegspace, or same space as label file)
-    pet_image_nifti = nib.load(pet_image)
-    pet_data = pet_image_nifti.get_fdata(dtype="float32")
-    # Mask unwanted values to determine mean uptake value
-    pons_pet_activity = eroded_mask * pet_data
-    mean_pons_pet_activity = np.sum(pons_pet_activity) / mask_size
-    # Then normalize PET data by this mean activity
-    suvr_image_nifti = nib.Nifti1Image(
-        pet_data / mean_pons_pet_activity,
-        pet_image_nifti.affine,
-        header=pet_image_nifti.header,
-    )
-    suvr_image = (output_dir or Path.cwd()) / f"suvr_{pet_image.name}"
-    nib.save(suvr_image_nifti, suvr_image)
-
-    return suvr_image
-
-
 def reformat_surfname(
     hemisphere: HemiSphere, left_surface: Path, right_surface: Path
 ) -> Path:
