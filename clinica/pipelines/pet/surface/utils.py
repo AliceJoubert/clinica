@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from clinica.utils.pet import SUVRReferenceRegion, Tracer
+from clinica.utils.third_party_execution import run_command_as_subprocess
 
 __all__ = [
     "perform_gtmseg",
@@ -365,7 +366,7 @@ def _set_script_for_spm_standalone(
     return script_file
 
 
-def _call_spm_standalone(script_location: Path) -> str:
+def _call_spm_standalone(script_location: Path, expected_output_location: Path) -> str:
     from clinica.utils.check_dependency import get_spm_standalone_home
     from clinica.utils.spm import _get_real_spm_standalone_file
 
@@ -373,16 +374,12 @@ def _call_spm_standalone(script_location: Path) -> str:
     spm_file = _get_real_spm_standalone_file(get_spm_standalone_home())
     cmdline = f"$SPMSTANDALONE_HOME/{spm_file} $MCR_HOME batch {str(script_location)}"
 
-    subprocess_run = subprocess.run(
+    run_command_as_subprocess(
+        "runApplyInverseDeformationField_SPM_standalone",
         cmdline,
-        shell=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        expected_output_location,
     )
-    if code := subprocess_run.returncode != 0:
-        raise ValueError(
-            f"runApplyInverseDeformationField_SPM_standalone failed, returned non-zero code with {code}"
-        )
+
     return cmdline
 
 
@@ -418,20 +415,12 @@ def run_apply_inverse_deformation_field_SPM_standalone(
     with open(script_location, "w", encoding="utf-8") as f:
         f.write(script_file)
 
-    cmdline = _call_spm_standalone(script_location)
-
     output_file = (
         Path.cwd() / f"{prefix}{img.name}"
     )  # TODO : if issue with symlinks use .resolve()
 
-    if not output_file.exists():
-        raise IOError(
-            "Something went wrong while trying to run runApplyInverseDeformationField_SPM_standalone"
-            + ". Output file not generated. Command launched :\n\t "
-            + cmdline
-            + "\n. We strongly recommend that you use the supported version of Matlab MCR "
-            + " recommended by the creators of SPM."
-        )
+    _call_spm_standalone(script_location, output_file)
+
     return output_file
 
 
@@ -517,14 +506,7 @@ def _setting_mris_expand_cmd(in_surface) -> str:
 
 
 def _running_mris_expand_with_subprocess(cmd: str) -> None:
-    subprocess_mris_expand = subprocess.run(
-        cmd,
-        shell=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if subprocess_mris_expand.returncode != 0:
-        raise ValueError("mris_expand failed, returned non-zero code")
+    run_command_as_subprocess("mris_expand", cmd)
 
 
 def _check_mri_expand_file_location_then_move(
@@ -639,14 +621,8 @@ def run_mri_surf2surf(
     # If system is MacOS, this export command must be run just before the mri_vol2surf command to bypass MacOs security
     if sys.platform == "darwin":
         cmd = "export DYLD_LIBRARY_PATH=$FREESURFER_HOME/lib/gcc/lib && " + cmd
-    subprocess_mri_surf2surf = subprocess.run(
-        cmd,
-        shell=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if subprocess_mri_surf2surf.returncode != 0:
-        raise ValueError("mri_surf2surf failed, returned non-zero code")
+
+    run_command_as_subprocess("mri_surf2surf", cmd)
 
     # remove file in caps
     os.remove(
@@ -730,14 +706,8 @@ def run_mri_vol2surf(
     # If system is MacOS, this export command must be run just before the mri_vol2surf command to bypass MacOs security
     if sys.platform == "darwin":
         cmd = "export DYLD_LIBRARY_PATH=$FREESURFER_HOME/lib/gcc/lib && " + cmd
-    subprocess_mri_vol2surf = subprocess.run(
-        cmd,
-        shell=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if subprocess_mri_vol2surf.returncode != 0:
-        raise ValueError("mri_vol2surf failed, returned non-zero code")
+
+    run_command_as_subprocess("mri_vol2surf", cmd)
 
     # remove file in caps
     os.remove(

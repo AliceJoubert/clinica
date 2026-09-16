@@ -139,33 +139,11 @@ def run_mris_expand(surface: Path, output_dir: Optional[Path] = None) -> List[Pa
 
 
 def _run_mri_expand_as_subprocess(surface: Path, out_file: Path):
-    _run_command_as_subprocess(
+    from clinica.utils.third_party_execution import run_command_as_subprocess
+
+    run_command_as_subprocess(
         "mris_expand", _build_mri_expand_command(surface, out_file)
     )
-
-
-def _run_command_as_subprocess(command_name: str, command: str):
-    import subprocess
-
-    from clinica.utils.exceptions import ClinicaSubprocessError
-    from clinica.utils.stream import cprint
-
-    cprint(
-        f"Running {command_name} with the following command:\n\n{command}", lvl="debug"
-    )
-    subprocess_ = subprocess.run(
-        command,
-        shell=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if (code := subprocess_.returncode) != 0:
-        error_msg = (
-            f"The subprocess '{command_name}' failed with a non-zero return code of {code}. "
-            f"The following command was run:\n\n{command}"
-        )
-        cprint(error_msg, lvl="error")
-        raise ClinicaSubprocessError(error_msg)
 
 
 def _build_mri_expand_command(surface: Path, out_file: Path) -> str:
