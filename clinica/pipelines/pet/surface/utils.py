@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from clinica.utils.filemanip import copy_file, move_file
+from clinica.utils.image import HemiSphere
 from clinica.utils.pet import SUVRReferenceRegion, Tracer
 from clinica.utils.stream import cprint
 from clinica.utils.third_party_execution import run_command_as_subprocess
@@ -32,6 +33,8 @@ __all__ = [
     "get_regexp_substitutions",
     "get_output_dir",
 ]
+
+# TODO : check all os.environ / expand var calls or functions
 
 
 def _get_longitudinal_folder_name(input_folder: Path) -> str:
@@ -490,7 +493,7 @@ def _make_freesurfer_command_mac_compatible(command: str) -> str:
     return "export DYLD_LIBRARY_PATH=$FREESURFER_HOME/lib/gcc/lib && " + command
 
 
-def _setting_mris_expand_cmd(in_surface: Path) -> str:
+def _build_mris_expand_cmd(in_surface: Path) -> str:
     cmd = f"mris_expand -thickness -N 13 {in_surface} 0.65 {in_surface.name}_exp-"
     # If system is MacOS, this export command must be run just before the mri_vol2surf command to bypass MacOs security
     if platform.system().lower().startswith("darwin"):
@@ -549,7 +552,7 @@ def run_mris_expand(surface: Path) -> list[Path]:
     Then we only keep the surfaces we are interested in.
     """
 
-    run_command_as_subprocess("mris_expand", _setting_mris_expand_cmd(surface))
+    run_command_as_subprocess("mris_expand", _build_mris_expand_cmd(surface))
 
     # Remove useless surfaces (0%, 5%, 10%, 15%, 20%, 25% and 30% of thickness)
     cprint(msg="Removing unnecessary mris_expands outputs (000 to 007)", lvl="debug")
@@ -571,8 +574,6 @@ def _build_mri_surf2surf_command(
     freesurfer_id: str,
     output_file: Path,
 ) -> str:
-    from clinica.utils.image import HemiSphere
-
     hemisphere = HemiSphere(surface.name[0:2])
     surface_name = surface.name[3:]
     command = f"mri_surf2surf --reg {registration} {gtmsegfile} --sval-xyz {surface_name} --hemi {hemisphere} --tval-xyz {gtmsegfile} --tval {output_file} --s {freesurfer_id}"
@@ -656,96 +657,101 @@ def run_mri_surf2surf(
     return output_path
 
 
+def _build_mri_vol2surf_command(
+    pet_volume: Path,
+    surface: Path,
+    freesurfer_id: str,
+    output_file: Path,
+) -> str:
+    hemisphere = HemiSphere(surface.name[0:2])
+    surface_name = surface.name[3:]
+    command = (
+        f"mri_vol2surf --mov {pet_volume} --o {output_file} --surf {surface_name} --hemi {hemisphere.value} "
+        f"--regheader {freesurfer_id} --ref gtmseg.mgz --interp nearest"
+    )
+
+    if platform.system().lower().startswith("darwin"):
+        command = _make_freesurfer_command_mac_compatible(command)
+
+    return command
+
+
 def run_mri_vol2surf(
-    volume, surface, subject_id, session_id, caps_dir, gtmsegfile, is_longitudinal
-):
-    """vol2surf is a wrapper of freesurfer command mri_vol2surf. It projects the volume into the surface : the value at
-    each vertex is given by the value of the voxel it intersects
+    pet_volume: Path,
+    surface: Path,
+    subject_id: str,
+    session_id: str,
+    caps_dir: Path,
+    gtmsegfile: Path,
+    is_longitudinal: bool,
+) -> Path:
+    """Make a subprocess call to the freesurfer vol2surf function.
 
-    Args:
-        (string) volume     : Path to PET volume (in gtmseg space) that needs to be mapped into surface
-        (string) surface    : Path to surface file
-        (string) gtmsegfile :l Path to the gtm segmentation file (provides information on space, labels are not used
-        (string) subject_id : The subject_id (something like sub-ADNI002S4213)
-        (string) session_id : The session id ( something like : ses-M012)
-        (string) caps_dir   : Path to the CAPS directory
+    Projects the volume into the surface : the value at each vertex is
+    given by the value of the voxel it intersects
 
-    Returns:
-        (string) Path to the data projected onto the surface
+    Parameters
+    ----------
+    pet_volume : Path
+        The path to PET volume (in gtmseg space) that needs to be mapped into surface.
+
+    surface : Path
+        The path to surface file.
+
+    subject_id : str
+        The subject_id (something like sub-ADNI002S4213).
+
+    session_id : str
+        The session id ( something like : ses-M012).
+
+    caps_dir : Path
+        The path to the CAPS directory.
+
+    gtmsegfile : Path
+        The path to the gtm segmentation file (provides information on space, labels are not used).
+
+    is_longitudinal : bool
+        Whether the function should handle longitudinal files or not.
+
+    Returns
+    -------
+    Path :
+        The path to the data projected onto the surface.
     """
 
     # set subjects_dir env. variable for mri_vol2surf to work properly
     subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
 
-    root_env, freesurfer_id = _get_new_subjects_dir(
+    subjects_dir, freesurfer_id = _get_new_subjects_dir(
         is_longitudinal, caps_dir, subject_id, session_id
     )
 
-    os.environ["SUBJECTS_DIR"] = str(root_env)
+    os.environ["SUBJECTS_DIR"] = str(subjects_dir)
+
+    copy_file(surface, subjects_dir / freesurfer_id / "surf")
+    gtmsegfile_copy = subjects_dir / freesurfer_id / "mri" / "gtmseg.mgz"
+    if not gtmsegfile_copy.exists():
+        copy_file(gtmsegfile, gtmsegfile_copy)
 
     # TODO write nicer way to grab hemi & filename (difficulty caused by the dots in filenames)
     # extract hemisphere based on filename
-    hemi = os.path.basename(surface)[0:2]
-    surfname = os.path.basename(surface)[3:]
+    hemisphere = HemiSphere(surface.name[0:2])
+    output_file = Path.cwd() / f"{hemisphere.value}.projection_{surface.name}.mgh"
 
-    # copy surface file in caps surf folder to allow processing
-    shutil.copy(
-        surface,
-        os.path.join(os.path.expandvars("$SUBJECTS_DIR"), freesurfer_id, "surf"),
+    run_command_as_subprocess(
+        "mri_vol2surf",
+        _build_mri_vol2surf_command(pet_volume, surface, freesurfer_id, output_file),
     )
 
-    if not os.path.exists(
-        os.path.join(
-            os.path.expandvars("$SUBJECTS_DIR"), freesurfer_id, "mri", "gtmseg.mgz"
-        )
-    ):
-        shutil.copy(
-            gtmsegfile,
-            os.path.join(
-                os.path.expandvars("$SUBJECTS_DIR"), freesurfer_id, "mri", "gtmseg.mgz"
-            ),
-        )
-
-    # execute vol2surf
-    output = os.path.abspath(
-        "./" + hemi + ".projection_" + os.path.basename(surface) + ".mgh"
-    )
-    cmd = "mri_vol2surf"
-    cmd += " --mov " + volume
-    cmd += " --o " + output
-    cmd += " --surf " + surfname
-    cmd += " --hemi " + hemi
-    cmd += " --regheader " + freesurfer_id
-    cmd += " --ref gtmseg.mgz"
-    cmd += " --interp nearest"
-
-    # If system is MacOS, this export command must be run just before the mri_vol2surf command to bypass MacOs security
-    if sys.platform == "darwin":
-        cmd = "export DYLD_LIBRARY_PATH=$FREESURFER_HOME/lib/gcc/lib && " + cmd
-
-    run_command_as_subprocess("mri_vol2surf", cmd)
-
-    # remove file in caps
-    os.remove(
-        os.path.join(
-            os.path.expandvars("$SUBJECTS_DIR"),
-            freesurfer_id,
-            "surf",
-            os.path.basename(surface),
-        )
-    )
+    (subjects_dir / freesurfer_id / "surf" / surface.name).unlink(missing_ok=False)
     # TODO careful here...
     # Removing gtmseg.mgz may lead to problems as other vol2surf are using it
-    os.remove(
-        os.path.join(
-            os.path.expandvars("$SUBJECTS_DIR"), freesurfer_id, "mri", "gtmseg.mgz"
-        )
-    )
+    gtmsegfile_copy.unlink(missing_ok=False)
 
     # put back original subjects_dir env
     os.environ["SUBJECTS_DIR"] = subjects_dir_backup
 
-    return output
+    return output_file
 
 
 def compute_weighted_mean_surface(in_surfaces):

@@ -1,10 +1,7 @@
-import os.path
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import nibabel as nib
-import numpy as np
-import pandas as pd
 
 from clinica.pipelines.utils import FreeSurferAnnotationImage
 from clinica.utils.image import HemiSphere
@@ -17,125 +14,6 @@ def reformat_surfname(
         return left_surface
     if hemisphere == HemiSphere.RIGHT:
         return right_surface
-
-
-def _make_freesurfer_command_mac_compatible(command: str) -> str:
-    return "export DYLD_LIBRARY_PATH=$FREESURFER_HOME/lib/gcc/lib && " + command
-
-
-def run_mri_vol2surf(
-    pet_volume: Path,
-    surface: Path,
-    subject_id: str,
-    session_id: str,
-    caps_dir: Path,
-    gtmsegfile: Path,
-    is_longitudinal: bool,
-    output_dir: Optional[Path] = None,
-) -> Path:
-    """Make a subprocess call to the freesurfer vol2surf function.
-
-    Projects the volume into the surface : the value at each vertex is
-    given by the value of the voxel it intersects
-
-    Parameters
-    ----------
-    pet_volume : Path
-        The path to PET volume (in gtmseg space) that needs to be mapped into surface.
-
-    surface : Path
-        The path to surface file.
-
-    subject_id : str
-        The subject_id (something like sub-ADNI002S4213).
-
-    session_id : str
-        The session id ( something like : ses-M012).
-
-    caps_dir : Path
-        The path to the CAPS directory.
-
-    gtmsegfile : Path
-        The path to the gtm segmentation file (provides information on space, labels are not used).
-
-    is_longitudinal : bool
-        Whether the function should handle longitudinal files or not.
-
-    output_dir : Path, optional
-        The path to the output folder in which to write the output files.
-        If not provided, the files will be written in the current directory.
-
-    Returns
-    -------
-    Path :
-        The path to the data projected onto the surface.
-    """
-    import os
-
-    from clinica.utils.filemanip import copy_file
-    from clinica.utils.image import HemiSphere
-
-    subjects_directory_backup = os.path.expandvars("$SUBJECTS_DIR")
-    subjects_directory, freesurfer_id = (
-        _get_new_subjects_directory_longitudinal
-        if is_longitudinal
-        else _get_new_subjects_directory
-    )(caps_dir, subject_id, session_id)
-    os.environ["SUBJECTS_DIR"] = str(subjects_directory)
-    copy_file(surface, subjects_directory / freesurfer_id / "surf")
-    gtmsegfile_copy = subjects_directory / freesurfer_id / "mri" / "gtmseg.mgz"
-    if not gtmsegfile_copy.exists():
-        copy_file(gtmsegfile, gtmsegfile_copy)
-    hemisphere = HemiSphere(surface.name[0:2])
-    output_file = (
-        output_dir or Path.cwd()
-    ) / f"{hemisphere.value}.projection_{surface.name}.mgh"
-    _run_mri_vol2surf_as_subprocess(pet_volume, surface, freesurfer_id, output_file)
-    (subjects_directory / freesurfer_id / "surf" / surface.name).unlink(
-        missing_ok=False
-    )
-    # TODO careful here...
-    # Removing gtmseg.mgz may lead to problems as other vol2surf are using it
-    gtmsegfile_copy.unlink(missing_ok=False)
-    # put back original subjects_dir env
-    os.environ["SUBJECTS_DIR"] = subjects_directory_backup
-
-    return output_file
-
-
-def _run_mri_vol2surf_as_subprocess(
-    pet_volume: Path,
-    surface: Path,
-    freesurfer_id: str,
-    output_file: Path,
-):
-    _run_command_as_subprocess(
-        "mri_vol2surf",
-        _build_mri_vol2surf_command(pet_volume, surface, freesurfer_id, output_file),
-    )
-
-
-def _build_mri_vol2surf_command(
-    pet_volume: Path,
-    surface: Path,
-    freesurfer_id: str,
-    output_file: Path,
-) -> str:
-    import platform
-
-    from clinica.utils.image import HemiSphere
-
-    user_system = platform.system().lower()
-    hemisphere = HemiSphere(surface.name[0:2])
-    surface_name = surface.name[3:]
-    command = (
-        f"mri_vol2surf --mov {pet_volume} --o {output_file} --surf {surface_name} --hemi {hemisphere.value} "
-        f"--regheader {freesurfer_id} --ref gtmseg.mgz --interp nearest"
-    )
-    if user_system.startswith("darwin"):
-        command = _make_freesurfer_command_mac_compatible(command)
-
-    return command
 
 
 def compute_weighted_mean_surface(
