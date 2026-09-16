@@ -1,5 +1,7 @@
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Sequence
 
@@ -166,7 +168,7 @@ def perform_gtmseg(
         out_file,
     )
 
-    # Remove bunch of files created during segmentation in caps dir and not needed
+    # Remove files created during segmentation in the CAPS but not needed
     for filename in ("gtmseg.ctab", "gtmseg.lta"):
         filepath = freesurfer_mri_folder / filename
         if filepath.exists():
@@ -325,23 +327,14 @@ def convert_labels(gtmseg_file: Path, csv_mapping_file: Path) -> list[Path]:
     return list_of_regions
 
 
-def run_apply_inverse_deformation_field_SPM_standalone(target, deformation_field, img):
-    """
-    We directly create a batch file that SPM standalone can run. This function does not check whether SPM standalone must be used. Previous
-    check when building the pipeline ensures that all the env vars exists ($SPMSTANDALONE_HOME and $MCR_HOME)
-    """
-    import os
-    import subprocess
-    from os.path import abspath, basename, exists, join
+def _set_script_for_spm_standalone(
+    target_image: Path,
+    deformation_field: Path,
+    img: Path,
+    prefix: str = "subject_space_",
+) -> str:
     from textwrap import dedent
 
-    from clinica.utils.check_dependency import get_spm_standalone_home
-    from clinica.utils.spm import _get_real_spm_standalone_file
-
-    prefix = "subject_space_"
-
-    # Write SPM batch command directly in a script that is readable by SPM standalone
-    script_location = abspath("./m_script.m")
     script_file = dedent(
         """
         spm('Defaults', 'fMRI');
@@ -362,18 +355,22 @@ def run_apply_inverse_deformation_field_SPM_standalone(target, deformation_field
 
     script_file = script_file.format(
         deformation_field=deformation_field,
-        target=target,
+        target=target_image,
         img=img,
-        output_dir=abspath(os.getcwd()),
+        output_dir=str(Path.cwd()),
         prefix=prefix,
     )
 
-    with open(script_location, "w", encoding="utf-8") as f:
-        f.write(script_file)
+    return script_file
 
-    # TODO : This might not even be needed with cmd line setting done prior
+
+def _call_spm_standalone(script_location: Path) -> str:
+    from clinica.utils.check_dependency import get_spm_standalone_home
+    from clinica.utils.spm import _get_real_spm_standalone_file
+
+    # TODO : This might not even be needed with cmd line setting done before in the pipeline
     spm_file = _get_real_spm_standalone_file(get_spm_standalone_home())
-    cmdline = f"$SPMSTANDALONE_HOME/{spm_file} $MCR_HOME batch {script_location}"
+    cmdline = f"$SPMSTANDALONE_HOME/{spm_file} $MCR_HOME batch {str(script_location)}"
 
     subprocess_run = subprocess.run(
         cmdline,
@@ -385,9 +382,48 @@ def run_apply_inverse_deformation_field_SPM_standalone(target, deformation_field
         raise ValueError(
             f"runApplyInverseDeformationField_SPM_standalone failed, returned non-zero code with {code}"
         )
+    return cmdline
 
-    output_file = join(abspath("./"), prefix + basename(img))
-    if not exists(output_file):
+
+def run_apply_inverse_deformation_field_SPM_standalone(
+    target_image: Path, deformation_field: Path, img: Path
+) -> Path:
+    """
+    We directly create a batch file that SPM standalone can run. This function does not check whether SPM standalone must be used. Previous
+    check when building the pipeline ensures that all the env vars exists ($SPMSTANDALONE_HOME and $MCR_HOME)
+
+    Parameters
+    ----------
+    target_image : Path
+        Path to the target image
+    deformation_field : Path
+        Path to the deformation field
+    img : Path
+        Path to the moving image, ie which is warped
+
+    Returns
+    -------
+    Path :
+        Path to the result
+    """
+    prefix = "subject_space_"
+
+    # Write SPM batch command directly in a script that is readable by SPM standalone
+    script_location = Path("./m_script.m").resolve()
+    script_file = _set_script_for_spm_standalone(
+        target_image, deformation_field, img, prefix
+    )
+
+    with open(script_location, "w", encoding="utf-8") as f:
+        f.write(script_file)
+
+    cmdline = _call_spm_standalone(script_location)
+
+    output_file = (
+        Path.cwd() / f"{prefix}{img.name}"
+    )  # TODO : if issue with symlinks use .resolve()
+
+    if not output_file.exists():
         raise IOError(
             "Something went wrong while trying to run runApplyInverseDeformationField_SPM_standalone"
             + ". Output file not generated. Command launched :\n\t "
@@ -462,8 +498,6 @@ def _setting_mris_expand_cmd(in_surface) -> str:
 
 
 def _running_mris_expand_with_subprocess(cmd: str) -> None:
-    import subprocess
-
     subprocess_mris_expand = subprocess.run(
         cmd,
         shell=True,
@@ -555,8 +589,6 @@ def run_mri_surf2surf(
     Returns:
         (string) Path to the converted surface in current directory
     """
-    import subprocess
-    import sys
 
     # set subjects_dir env. variable for mri_surf2surf to work properly
     subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
@@ -630,8 +662,6 @@ def run_mri_vol2surf(
     Returns:
         (string) Path to the data projected onto the surface
     """
-    import subprocess
-    import sys
 
     # set subjects_dir env. variable for mri_vol2surf to work properly
     subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
