@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Sequence
 
@@ -204,22 +205,60 @@ def _read_region_source_dst_csv(csv_file: Path) -> pd.DataFrame:
     return df
 
 
-def _truc(
-    csv_file: Path, original_labels: np.ndarray
+def _load_source_dest_region(
+    csv_mapping_file: Path,
 ) -> tuple[np.ndarray, np.ndarray, list[str]]:
-    df = _read_region_source_dst_csv(csv_file)
-    src_val = np.asanyarray(list(df.SOURCE)).astype("int")
+    df = _read_region_source_dst_csv(csv_mapping_file)
+    return (
+        np.asanyarray(list(df.SOURCE)).astype("int"),
+        np.asarray(list(df.DST)).astype("int"),
+        list(df.REGION),
+    )
 
-    # Check that each label of original volume (old_label) has a matching transformation in the csv file
+
+def _check_mapping_integrity(
+    original_labels: np.ndarray, mapping_source_values: np.ndarray
+) -> None:
+    # Check that each label of original volume (old_label) has a matching transformation in the mapping file
     for label in original_labels:
-        if label not in src_val:
+        if label not in mapping_source_values:
             raise Exception(
                 f"Could not find label {label} on conversion table. Add it manually in CSV file to correct error"
             )
-    return src_val, np.asarray(list(df.DST)).astype("int"), list(df.REGION)
 
 
-def convert_labels(gtmseg_file: Path, csv_file: Path) -> list[Path]:
+def _apply_mapping(
+    gtm_segmentation_labels: np.ndarray, source: np.ndarray, dest: np.ndarray
+) -> np.ndarray:
+    # todo : in test verify the dtype should be integers16
+    new_labels_volume = np.zeros(
+        gtm_segmentation_labels.shape, dtype=gtm_segmentation_labels.dtype
+    )
+    # Computing the transformation
+    for i, src in enumerate(source):
+        new_labels_volume[gtm_segmentation_labels == src] = dest[i]
+
+    return new_labels_volume
+
+
+def _are_almost_equal(a: float, b: float, rel_tol=1e-9, abs_tol=0.0) -> bool:
+    """Measure equality between to floating or double numbers, using 2 thresholds : a
+    relative tolerance, and an absolute tolerance
+    """
+    return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+
+
+def _check_sum(control_image_data: np.ndarray):
+    """The sum of a voxel location across the fourth dimension should be 1."""
+    sum_voxel_mean = float(sum(sum(sum(control_image_data)))) / control_image_data.size
+    if not _are_almost_equal(1.0, sum_voxel_mean):
+        raise ValueError(
+            "Problem during parcellation: the mean sum of a voxel across "
+            f"4th dimension is {sum_voxel_mean} instead of 1.0"
+        )
+
+
+def convert_labels(gtmseg_file: Path, csv_mapping_file: Path) -> list[Path]:
     """Method used on the segmentation from gtmsegmentation.
 
     The purpose is to reduce the number of label.
@@ -230,8 +269,8 @@ def convert_labels(gtmseg_file: Path, csv_file: Path) -> list[Path]:
     gtmseg_file : Path
         The path to the Nifti volume containing the gtmseg segmentation.
 
-    csv_file : Path
-        The path to .csv file that contains 3 columns : REGION SOURCE DST.
+    csv_mapping_file : Path
+        The path to the mapping .csv file that contains 3 columns : REGION SOURCE DST.
         Separator is , (coma).
 
     Returns
@@ -240,47 +279,36 @@ def convert_labels(gtmseg_file: Path, csv_file: Path) -> list[Path]:
         List of path to the converted volumes according to the .csv file.
         Each volume is a mask representing an area.
     """
-    label = nib.load(gtmseg_file)
-    label.header.set_data_dtype("int8")
-    label_data = label.get_fdata(dtype="float32")
-    original_labels = np.unique(label_data).astype("int16")
-    control_volume = np.zeros(label_data.shape)
+    gtm_segmentation = nib.load(gtmseg_file)
+    gtm_segmentation.header.set_data_dtype("int8")
+    gtm_segmentation_volume = gtm_segmentation.get_fdata(dtype="float32").astype(
+        "int16"
+    )
+    control_volume = np.zeros(gtm_segmentation_volume.shape)
 
-    # Instantiation of final volume, with same dtype as original volume
-    new_volume = np.zeros(label_data.shape, dtype=label_data.dtype)
-    # Computing the transformation
-    for i in range(src_val.size):
-        new_volume[label_data == src_val[i]] = dst_val[i]
-    # Get unique list of new label
-    new_labels = np.unique(new_volume)
-    new_labels = new_labels.astype("int")
+    source, dest, region = _load_source_dest_region(csv_mapping_file)
+    _check_mapping_integrity(np.unique(gtm_segmentation_volume), source)
+
+    new_labels_volume = _apply_mapping(gtm_segmentation_volume, source, dest)
+
     list_of_regions = list()
 
     # For each label, create a volume file filled with 0s and 1s and save it in current directory under whatever name
-    for i in range(new_labels.size):
-        region_volume = np.zeros(label_data.shape, dtype="uint8")
-        region_volume[new_volume == new_labels[i]] = 1
-        myNifti = nib.Nifti1Image(region_volume, label.affine, header=label.header)
-        current_path = "./" + str(new_labels[i]) + ".nii.gz"
-        current_path = os.path.abspath(current_path)
-        nib.save(myNifti, current_path)
-        list_of_regions.append(current_path)
+    for new_label in np.unique(new_labels_volume):
+        region_volume = np.zeros(gtm_segmentation_volume.shape, dtype="uint8")
+        region_volume[new_labels_volume == new_label] = 1
+        output_path = Path(f"{new_label}.nii.gz").resolve()
+        nib.save(
+            nib.Nifti1Image(
+                region_volume, gtm_segmentation.affine, header=gtm_segmentation.header
+            ),
+            output_path,
+        )
+        list_of_regions.append(output_path)
         control_volume = control_volume + region_volume
 
-    # The sum of a voxel location across the fourth dimension should be 1
-    sum_voxel_mean = float(sum(sum(sum(control_volume)))) / control_volume.size
+    _check_sum(control_volume)
 
-    def isclose(a, b, rel_tol=1e-9, abs_tol=0.0):
-        """Small function designed to measure equality between to floating or double numbers, using 2 thresholds : a
-        relative tolerance, and an absolute tolerance
-        """
-        return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
-
-    if not isclose(1.0, sum_voxel_mean):
-        raise Exception(
-            f"Problem during parcellation: the mean sum of a voxel across 4th dimension is {sum_voxel_mean} instead of 1.0"
-        )
-    # The list of files is returned
     return list_of_regions
 
 
