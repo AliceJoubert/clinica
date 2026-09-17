@@ -21,7 +21,7 @@ def _running_mris_expand_with_subprocess_mock(cmd: str):
 def test_build_mris_expand_cmd(tmp_path, platform):
     import sys
 
-    from pipelines.pet.surface.utils import _build_mris_expand_cmd
+    from clinica.pipelines.pet.surface.utils import _build_mris_expand_cmd
 
     in_surface = str(tmp_path / "lh.white")
     with mock.patch.object(sys, "platform", platform):
@@ -32,17 +32,17 @@ def test_build_mris_expand_cmd(tmp_path, platform):
 
 
 def test_mris_expand(tmp_path):
-    from pipelines.pet.surface.utils import mris_expand
+    from clinica.pipelines.pet.surface.utils import run_mris_expand
 
     name = "lh.white"
     in_surface = tmp_path / name
     in_surface.touch()
 
     with mock.patch(
-        "clinica.pipelines.pet_surface.pet_surface_utils._running_mris_expand_with_subprocess",
+        "clinica.pipelines.pet_surface.pet_surface_utils.run_command_as_subprocess",
         wraps=_running_mris_expand_with_subprocess_mock,
     ) as mocked:
-        mris_expand(str(in_surface))
+        run_mris_expand(in_surface)
         mocked.assert_called_once()
 
     outputs = list(Path(os.getcwd()).glob(rf"*{name}*"))
@@ -55,7 +55,8 @@ def test_mris_expand(tmp_path):
 def test_merge_nifti_volumes(tmp_path):
     import nibabel as nib
     import numpy as np
-    from pipelines.pet.surface.utils import merge_nifti_volumes
+
+    from clinica.pipelines.pet.surface.utils import merge_nifti_volumes
 
     image1 = nib.Nifti1Image(np.random.rand(3, 3, 3, 1), affine=np.eye(4))
     image2 = nib.Nifti1Image(np.random.rand(3, 3, 3, 1), affine=np.eye(4))

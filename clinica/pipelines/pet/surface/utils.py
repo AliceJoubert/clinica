@@ -107,10 +107,10 @@ def _run_gtmseg(freesurfer_id: str, subjects_directory: Path):
         interface=CommandLine(
             command=f"gtmseg --s {freesurfer_id} --no-seg-stats --xcerseg",
             terminal_output="stream",
-            env=temporary_env,
         ),
         name="gtmseg",
     )
+    segmentation.inputs.environ = temporary_env
     segmentation.run()
 
 
@@ -821,6 +821,8 @@ def project_onto_fsaverage(
     Path :
         The path to the data averaged.
     """
+    subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
+
     subjects_dir, freesurfer_id = _get_new_subjects_dir(
         is_longitudinal, caps_dir, subject_id, session_id
     )
@@ -828,7 +830,7 @@ def project_onto_fsaverage(
     # copy fsaverage folder next to : subject_id + '_' + session_id
     # for the mris_preproc command to properly find src and target
     fsaverage_has_been_copied = _fsaverage_was_copied(
-        Path(os.environ["$SUBJECTS_DIR"]), subjects_dir
+        Path(subjects_dir_backup), subjects_dir
     )
 
     # also copy the mgh file in the surf folder (needed by MRISPreproc)
