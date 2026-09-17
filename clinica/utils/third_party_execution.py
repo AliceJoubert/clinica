@@ -9,7 +9,10 @@ __all__ = ["run_command_as_subprocess"]
 
 
 def run_command_as_subprocess(
-    command_name: str, command: str, out_file: Optional[Path] = None
+    command_name: str,
+    command: str,
+    out_file: Optional[Path] = None,
+    env: Optional[dict] = None,
 ):
     cprint(
         f"Running {command_name} with the following command:\n\n{command}", lvl="debug"
@@ -19,6 +22,7 @@ def run_command_as_subprocess(
         shell=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env=env,
     )
     if (code := subprocess_.returncode) != 0:
         error_msg = (

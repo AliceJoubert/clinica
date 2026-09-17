@@ -34,9 +34,6 @@ __all__ = [
     "get_output_dir",
 ]
 
-# TODO : check all os.environ / expand var calls or functions
-# TODO : any way to break down that file ?
-
 
 def _get_longitudinal_folder_name(input_folder: Path) -> str:
     from clinica.utils.exceptions import ClinicaCAPSError
@@ -95,11 +92,7 @@ def _get_new_subjects_dir(
     return root / "freesurfer_cross_sectional", f"{subject_id}_{session_id}"
 
 
-def _expand_environment_variable_into_path(variable_name: str) -> Path:
-    return Path(os.path.expandvars(variable_name))
-
-
-def _run_gtmseg(freesurfer_id: str):
+def _run_gtmseg(freesurfer_id: str, subjects_directory: Path):
     """Run the gtmseg command with provided freesurfer ID.
     This function creates a standalone node based on Command Line Interface.
     We simply put the command line we would run on a console.
@@ -107,10 +100,14 @@ def _run_gtmseg(freesurfer_id: str):
     import nipype.pipeline.engine as pe
     from nipype.interfaces.base import CommandLine
 
+    temporary_env = os.environ.copy()
+    temporary_env["SUBJECTS_DIR"] = str(subjects_directory)
+
     segmentation = pe.Node(
         interface=CommandLine(
-            f"gtmseg --s {freesurfer_id} --no-seg-stats --xcerseg",
+            command=f"gtmseg --s {freesurfer_id} --no-seg-stats --xcerseg",
             terminal_output="stream",
+            env=temporary_env,
         ),
         name="gtmseg",
     )
@@ -148,24 +145,15 @@ def perform_gtmseg(
     tested whether it can lead to some problems : (for instance if 2
     subjects are running in parallel)
     """
-
-    # Old subject_dir is saved for later
-    subjects_dir_backup = _expand_environment_variable_into_path("$SUBJECTS_DIR")
-
     subjects_dir, freesurfer_id = _get_new_subjects_dir(
         is_longitudinal, caps_dir, subject_id, session_id
     )
 
-    # Set the new subject dir for the function to work properly
-    os.environ["SUBJECTS_DIR"] = str(subjects_dir)
-
-    freesurfer_mri_folder = (
-        _expand_environment_variable_into_path("$SUBJECTS_DIR") / freesurfer_id / "mri"
-    )
+    freesurfer_mri_folder = subjects_dir / freesurfer_id / "mri"
     gtmseg_file_path = freesurfer_mri_folder / "gtmseg.mgz"
 
     if not gtmseg_file_path.exists():
-        _run_gtmseg(freesurfer_id)
+        _run_gtmseg(freesurfer_id, subjects_dir)
 
     # We specify the out file to be in the current directory of execution (easy for us to look at it afterward in the
     # working directory). We copy then the file.
@@ -177,9 +165,6 @@ def perform_gtmseg(
         filepath = freesurfer_mri_folder / filename
         if filepath.exists():
             filepath.unlink()
-
-    # Set back the SUBJECT_DIR environment variable of the user
-    os.environ["SUBJECTS_DIR"] = str(subjects_dir_backup)
     return out_file
 
 
@@ -627,27 +612,24 @@ def run_mri_surf2surf(
         The path to the converted surface in current directory.
     """
 
-    # Set subjects_dir env. variable for mri_surf2surf to work properly
-    subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
-
     subject_directory, freesurfer_id = _get_new_subjects_dir(
         is_longitudinal, caps_dir, subject_id, session_id
     )
-    os.environ["SUBJECTS_DIR"] = str(subject_directory)
-
     copy_file(surface, subject_directory / freesurfer_id / "surf", exist_ok=True)
     output_path = Path.cwd() / f"{surface.name}_gtmsegspace"
+
+    temporary_env = os.environ.copy()
+    temporary_env["SUBJECTS_DIR"] = str(subject_directory)
+
     run_command_as_subprocess(
         "mri_surf2surf",
         _build_mri_surf2surf_command(
             surface, registration, gtmsegfile, freesurfer_id, output_path
         ),
+        env=temporary_env,
     )
 
     (subject_directory / freesurfer_id / "surf" / surface.name).unlink(missing_ok=False)
-
-    # put back original subjects_dir env
-    os.environ["SUBJECTS_DIR"] = subjects_dir_backup
 
     return output_path
 
@@ -714,14 +696,9 @@ def run_mri_vol2surf(
         The path to the data projected onto the surface.
     """
 
-    # set subjects_dir env. variable for mri_vol2surf to work properly
-    subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
-
     subjects_dir, freesurfer_id = _get_new_subjects_dir(
         is_longitudinal, caps_dir, subject_id, session_id
     )
-
-    os.environ["SUBJECTS_DIR"] = str(subjects_dir)
 
     copy_file(surface, subjects_dir / freesurfer_id / "surf")
     gtmsegfile_copy = subjects_dir / freesurfer_id / "mri" / "gtmseg.mgz"
@@ -733,18 +710,19 @@ def run_mri_vol2surf(
     hemisphere = HemiSphere(surface.name[0:2])
     output_file = Path.cwd() / f"{hemisphere.value}.projection_{surface.name}.mgh"
 
+    temporary_env = os.environ.copy()
+    temporary_env["SUBJECTS_DIR"] = str(subjects_dir)
+
     run_command_as_subprocess(
         "mri_vol2surf",
         _build_mri_vol2surf_command(pet_volume, surface, freesurfer_id, output_file),
+        env=temporary_env,
     )
 
     (subjects_dir / freesurfer_id / "surf" / surface.name).unlink(missing_ok=False)
     # TODO careful here...
     # Removing gtmseg.mgz may lead to problems as other vol2surf are using it
     gtmsegfile_copy.unlink(missing_ok=False)
-
-    # put back original subjects_dir env
-    os.environ["SUBJECTS_DIR"] = subjects_dir_backup
 
     return output_file
 
@@ -843,19 +821,14 @@ def project_onto_fsaverage(
     Path :
         The path to the data averaged.
     """
-
-    subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
-
     subjects_dir, freesurfer_id = _get_new_subjects_dir(
         is_longitudinal, caps_dir, subject_id, session_id
     )
 
-    os.environ["SUBJECTS_DIR"] = str(subjects_dir)
-
     # copy fsaverage folder next to : subject_id + '_' + session_id
     # for the mris_preproc command to properly find src and target
     fsaverage_has_been_copied = _fsaverage_was_copied(
-        Path(subjects_dir_backup), subjects_dir
+        Path(os.environ["$SUBJECTS_DIR"]), subjects_dir
     )
 
     # also copy the mgh file in the surf folder (needed by MRISPreproc)
@@ -867,7 +840,7 @@ def project_onto_fsaverage(
     out_fsaverage = Path.cwd() / f"fsaverage_fwhm-{fwhm}_{projection.name}"
 
     _run_mris_preproc_as_standalone_nipype_node(
-        projection, freesurfer_id, fwhm, out_fsaverage
+        projection, freesurfer_id, fwhm, out_fsaverage, subjects_directory=subjects_dir
     )
 
     # remove projection file from surf folder
@@ -877,8 +850,6 @@ def project_onto_fsaverage(
     if fsaverage_has_been_copied:
         shutil.rmtree(subjects_dir / "fsaverage")
 
-    # put back original subjects_dir env
-    os.environ["SUBJECTS_DIR"] = subjects_dir_backup
     return out_fsaverage
 
 
@@ -887,8 +858,12 @@ def _run_mris_preproc_as_standalone_nipype_node(
     freesurfer_id: str,
     fwhm: float,
     output_file: Path,
+    subjects_directory: Path,
 ):
     from nipype.interfaces.freesurfer import MRISPreproc
+
+    temporary_env = os.environ.copy()
+    temporary_env["SUBJECTS_DIR"] = str(subjects_directory)
 
     projection_node = MRISPreproc()
     projection_node.inputs.target = "fsaverage"
@@ -897,6 +872,7 @@ def _run_mris_preproc_as_standalone_nipype_node(
     projection_node.inputs.hemi = HemiSphere(projection.name[0:2]).value
     projection_node.inputs.surf_measure = projection.name[3:]
     projection_node.inputs.out_file = str(output_file)
+    projection_node._environ = temporary_env
     projection_node.run()
 
 
