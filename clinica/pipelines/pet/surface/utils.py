@@ -1,14 +1,15 @@
 import os
 import platform
 import shutil
-import sys
 from pathlib import Path
 from typing import Sequence
 
 import nibabel as nib
 import numpy as np
 import pandas as pd
+from h5py.h5t import array_create
 
+from clinica.pipelines.utils import FreeSurferAnnotation
 from clinica.utils.filemanip import copy_file, move_file
 from clinica.utils.image import HemiSphere
 from clinica.utils.pet import SUVRReferenceRegion, Tracer
@@ -38,6 +39,7 @@ __all__ = [
 # TODO : any way to break down that file ?
 # TODO : are pipelines / utils used ?
 # TODO : are all functions well named ?
+# TODO : check redundant imports
 
 
 def _get_longitudinal_folder_name(input_folder: Path) -> str:
@@ -943,71 +945,76 @@ def reformat_surfname(
         return right_surface
 
 
-def compute_average_pet_signal_based_on_annotations(pet: list[Path], atlas_files: dict):
-    """produce_tsv computes the average of PET signal based on annot files from Freesurfer. Those files describes the
-    brain according to known atlases.
+def compute_average_pet_signal_based_on_annotations(
+    pet_projections: tuple[Path, Path], atlas_files: tuple[str, FreeSurferAnnotation]
+) -> list[Path]:
+    """Computes the average of PET signal based on annot files from Freesurfer.
 
-        Args:
-            (string) pet      : list of path to the PET projection (must be a MGH file) [left_hemisphere, right_hemisphere]
-            (string) atlas_files  : Dictionary containing path to lh and rh annotation files for any number of atlases.
+    Those files describe the brain according to known atlases.
 
-        Returns:
-            (string) tsv  : path to the tsv containing average PET values
+    Parameters
+    ----------
+    pet_projections : tuple of two Path
+        The paths to the PET projection (must be a MGH file) [left_hemisphere, right_hemisphere].
+
+    atlas_files : tuple[str, FreeSurferAnnotationImage]
+        Tuple containing path to lh and rh annotation files for any number of atlases and their names.
+
+    Returns
+    -------
+    Path :
+        The path to the tsv containing average PET values.
+
+    Raises
+    ------
+    ValueError :
+        If not exactly two files were provided through the argument 'pet_projections'.
     """
-    # todo : check connections types
-    import os
 
-    import nibabel as nib
-    import numpy as np
-    import pandas as pds
+    from clinica.pipelines.utils import FreeSurferAnnotation
+    from clinica.utils.stream import log_and_raise
 
-    # Extract data from projected PET data
-    lh_pet_mgh = np.squeeze(nib.load(pet[0]).get_fdata(dtype="float32"))
-    rh_pet_mgh = np.squeeze(nib.load(pet[1]).get_fdata(dtype="float32"))
+    if len(pet_projections) != 2:
+        msg = (
+            "The compute_average_pet_signal_based_on_annotations function requires two files "
+            "for the argument 'pet_projections', one for the left hemisphere, one for the right. "
+            f"The following {len(pet_projections)} were received:\n"
+            + "\n".join([str(_) for _ in pet_projections])
+        )
+        log_and_raise(msg, ValueError)
+
+    pet_mgh = {
+        HemiSphere.LEFT: np.squeeze(
+            nib.load(pet_projections[0]).get_fdata(dtype="float32")
+        ),
+        HemiSphere.RIGHT: np.squeeze(
+            nib.load(pet_projections[1]).get_fdata(dtype="float32")
+        ),
+    }
 
     filename_tsv = []
-    for atlas in atlas_files:
-        annot_atlas_left = nib.freesurfer.io.read_annot(
-            atlas_files[atlas]["lh"], orig_ids=False
-        )
-        annot_atlas_left[0][annot_atlas_left[0] == -1] = 0
-        annot_atlas_right = nib.freesurfer.io.read_annot(
-            atlas_files[atlas]["rh"], orig_ids=False
-        )
-        annot_atlas_right[0][annot_atlas_right[0] == -1] = 0
 
+    for annotation in atlas_files:
+        annotation.replace_minus_one_annotation_with_zero()
         average_region = []
-        region_names = []
-        for r in range(len(annot_atlas_left[2])):
-            # cprint(annot_atlas_left[2][r])
-            region_names.append(annot_atlas_left[2][r].astype(str) + "_lh")
-            region_names.append(annot_atlas_left[2][r].astype(str) + "_rh")
+        for region_id, reg_name in enumerate(annotation.region_names):
+            for hemisphere in (HemiSphere.LEFT, HemiSphere.RIGHT):
+                mask = annotation.get_annotation(hemisphere) == region_id
+                mask = np.uint(mask)
+                masked_data = mask * pet_mgh[hemisphere]
+                average_region.append(
+                    np.nan if np.sum(mask) == 0 else np.sum(masked_data) / np.sum(mask)
+                )
 
-            mask_left = annot_atlas_left[0] == r
-            mask_left = np.uint(mask_left)
-
-            masked_data_left = mask_left * lh_pet_mgh
-            if np.sum(mask_left) == 0:
-                average_region.append(np.nan)
-            else:
-                average_region.append(np.sum(masked_data_left) / np.sum(mask_left))
-
-            mask_right = annot_atlas_right[0] == r
-            mask_right = np.uint(mask_right)
-            masked_data_right = mask_right * rh_pet_mgh
-            if np.sum(mask_right) == 0:
-                average_region.append(np.nan)
-            else:
-                average_region.append(np.sum(masked_data_right) / np.sum(mask_right))
-
-        final_tsv = pds.DataFrame(
+        final_tsv = pd.DataFrame(
             {
-                "index": range(len(region_names)),
-                "label_name": region_names,
+                "index": range(len(average_region)),
+                "label_name": annotation.get_lateralized_region_names(left_first=True),
                 "mean_scalar": list(average_region),
             }
         )
-        filename_atlas_tsv = "./" + atlas + ".tsv"
+
+        filename_atlas_tsv = Path.cwd() / f"{annotation.atlas_name}.tsv"
         filename_tsv.append(filename_atlas_tsv)
         final_tsv.to_csv(
             filename_atlas_tsv,
@@ -1015,14 +1022,10 @@ def compute_average_pet_signal_based_on_annotations(pet: list[Path], atlas_files
             index=False,
             columns=["index", "label_name", "mean_scalar"],
         )
-    return os.path.abspath(filename_tsv[0]), os.path.abspath(filename_tsv[1])
+    return filename_tsv
 
 
 def merge_nifti_volumes(inputs: list[str]) -> str:
-    # todo : where ?
-    import os
-
-    import nibabel as nib
     from nilearn.image import concat_imgs
 
     sorted_inputs = sorted(

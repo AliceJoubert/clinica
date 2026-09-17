@@ -45,6 +45,7 @@ class FreeSurferAnnotationImage:
 
 @dataclass
 class FreeSurferAnnotation:
+    atlas_name: str
     region_names: list[str]
     left_annotations: np.ndarray
     right_annotations: np.ndarray
@@ -52,14 +53,23 @@ class FreeSurferAnnotation:
     right_ctab: np.ndarray
 
     @classmethod
-    def from_annotation_image(cls, image: FreeSurferAnnotationImage):
+    def from_raw(
+        cls, left: Union[str, PathLike], right: Union[str, PathLike], atlas_name: str
+    ):
+        return cls.from_annotation_image(
+            FreeSurferAnnotationImage.from_raw(left, right), atlas_name
+        )
+
+    @classmethod
+    def from_annotation_image(cls, image: FreeSurferAnnotationImage, atlas_name: str):
         left_annotations, left_ctab, region_names = nib.freesurfer.io.read_annot(
-            image.left.path, orig_ids=False
+            str(image.left.path), orig_ids=False
         )
         right_annotations, right_ctab, _ = nib.freesurfer.io.read_annot(
-            image.right.path, orig_ids=False
+            str(image.right.path), orig_ids=False
         )
         return cls(
+            atlas_name,
             [r.astype(str) for r in region_names],
             left_annotations,
             right_annotations,

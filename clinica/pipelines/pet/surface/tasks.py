@@ -135,7 +135,6 @@ def run_mri_vol2surf_task(
 def compute_weighted_mean_surface_task(surfaces: list[str]) -> str:
     from pathlib import Path
 
-    # TODO : type
     from clinica.pipelines.pet.surface.utils import compute_weighted_mean_surface
 
     return str(
@@ -179,9 +178,8 @@ def get_mid_surface_task(surfaces) -> str:
 
 def compute_average_pet_signal_based_on_annotations_task(
     pet_projections: tuple,
-    atlas_files: dict,
+    atlas_files: tuple,
 ) -> tuple:
-    # TODO
     from pathlib import Path
 
     from clinica.pipelines.pet.surface.utils import (

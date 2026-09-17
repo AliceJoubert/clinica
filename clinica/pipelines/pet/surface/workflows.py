@@ -101,6 +101,7 @@ def get_wf(
         get_regexp_substitutions,
         merge_nifti_volumes,
     )
+    from pipelines.utils import FreeSurferAnnotation
 
     from clinica.pipelines.pet.utils import get_suvr_mask, read_psf_information
     from clinica.utils.filemanip import get_subject_id, load_volume, unzip_nii
@@ -359,10 +360,11 @@ def get_wf(
         ),
         name="atlas_tsv",
     )
-    atlas_tsv.inputs.atlas_files = {
-        "destrieux": {"lh": destrieux_left, "rh": destrieux_right},
-        "desikan": {"lh": desikan_left, "rh": desikan_right},
-    }  # TODO : with better definition (pip utils)
+
+    atlas_tsv.inputs.atlas_files = (
+        FreeSurferAnnotation.from_raw(destrieux_left, destrieux_right, "destrieux"),
+        FreeSurferAnnotation.from_raw(desikan_left, desikan_right, "desikan"),
+    )
 
     # 2 creation of workflow : working dir, inputnode, outputnode and datasink
     name_workflow = subject_id.replace("-", "_") + "_" + session_id.replace("-", "_")
