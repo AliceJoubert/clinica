@@ -10,8 +10,8 @@ def _padding_to_3(number: int) -> str:
     return "0" * (3 - len(number_string)) + number_string
 
 
-def _running_mris_expand_with_subprocess_mock(cmd: str):
-    cmd_parts = cmd.split(" ")
+def _running_mris_expand_with_subprocess_mock(command_name: str, command: str):
+    cmd_parts = command.split(" ")
     # cmd line contains : number of files to write -1 (-4), base file name (-1)
     for n in range(0, int(cmd_parts[-4]) + 1):
         (Path(os.getcwd()) / (cmd_parts[-1] + _padding_to_3(n))).touch()
@@ -23,7 +23,7 @@ def test_build_mris_expand_cmd(tmp_path, platform):
 
     from clinica.pipelines.pet.surface.utils import _build_mris_expand_cmd
 
-    in_surface = str(tmp_path / "lh.white")
+    in_surface = tmp_path / "lh.white"
     with mock.patch.object(sys, "platform", platform):
         result = _build_mris_expand_cmd(in_surface)
         assert f"mris_expand -thickness -N 13 {in_surface} 0.65 lh.white_exp-" in result
@@ -39,7 +39,7 @@ def test_mris_expand(tmp_path):
     in_surface.touch()
 
     with mock.patch(
-        "clinica.pipelines.pet_surface.pet_surface_utils.run_command_as_subprocess",
+        "clinica.pipelines.pet.surface.utils.run_command_as_subprocess",
         wraps=_running_mris_expand_with_subprocess_mock,
     ) as mocked:
         run_mris_expand(in_surface)
