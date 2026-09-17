@@ -802,81 +802,110 @@ def compute_weighted_mean_surface(surfaces: Sequence[Path]) -> Path:
     return out_surface
 
 
+def _fsaverage_was_copied(src: Path, dst: Path) -> bool:
+    # todo : does it ever happen that it was not copied bc already exists ?
+    if not (dst / "fsaverage").exists():
+        shutil.copytree(src / "fsaverage", dst / "fsaverage")
+        return True
+    return False
+
+
 def project_onto_fsaverage(
-    projection, subject_id, caps_dir, session_id, fwhm, is_longitudinal
-):
-    """fsaverage_projection projects your data into an averaged subject called fsaverage, available in your $SUBJECTS_DIR
-    folder. fsaverage and the subject must be in the subject_dir, so a copy of fsaverage is performed if necessary
+    projection: Path,
+    subject_id: str,
+    session_id: str,
+    caps_dir: Path,
+    fwhm: int,
+    is_longitudinal: bool,
+) -> Path:
+    """Project data onto an averaged subject called fsaverage.
 
-    Args:
-        (string) projection : Path to the projected data onto native subject surface
-        (string) subject_id : The subject id (something like sub-ADNI002S4213)
-        (string) session_id : The session id ( something like : ses-M012)
-        (string) caps_dir   : Path to the CAPS directory
-        (float) fwhm        : FWHM of the Gaussian filter used for smoothing on fsaverage surface (not volume !)
-        (bool) is_longitudinal : longitudinal pipeline or not
+    This subject is available in the $SUBJECTS_DIR folder.
 
-    Returns:
-        (string) Path to the data averaged
+    Notes
+    -----
+    fsaverage and the subject must be in the subject_dir, so a copy of fsaverage is performed if necessary.
+
+    Parameters
+    ----------
+    projection : Path
+        The path to the projected data onto native subject surface.
+
+    subject_id : str
+        The subject id (something like sub-ADNI002S4213).
+
+    session_id : str
+        The session id ( something like : ses-M012).
+
+    caps_dir : Path
+        The path to the CAPS directory.
+
+    fwhm : int
+        FWHM of the Gaussian filter used for smoothing on fsaverage surface (not volume !)
+
+    is_longitudinal : bool
+        Longitudinal pipeline or not.
+
+    Returns
+    -------
+    Path :
+        The path to the data averaged.
     """
-    from nipype.interfaces.freesurfer import MRISPreproc
 
     subjects_dir_backup = os.path.expandvars("$SUBJECTS_DIR")
 
-    root_env, freesurfer_id = _get_new_subjects_dir(
+    subjects_dir, freesurfer_id = _get_new_subjects_dir(
         is_longitudinal, caps_dir, subject_id, session_id
     )
 
-    os.environ["SUBJECTS_DIR"] = str(root_env)
+    os.environ["SUBJECTS_DIR"] = str(subjects_dir)
 
     # copy fsaverage folder next to : subject_id + '_' + session_id
     # for the mris_preproc command to properly find src and target
-    fsaverage_has_been_copied = False
-    if not os.path.exists(
-        os.path.join(os.path.expandvars("$SUBJECTS_DIR"), "fsaverage")
-    ):
-        shutil.copytree(
-            os.path.join(subjects_dir_backup, "fsaverage"),
-            os.path.join(os.path.expandvars("$SUBJECTS_DIR"), "fsaverage"),
-        )
-        fsaverage_has_been_copied = True
-
-    # also copy the mgh file in the surf folder (needed by MRISPreproc
-    projection_in_surf_folder = os.path.join(
-        os.path.expandvars("$SUBJECTS_DIR"),
-        freesurfer_id,
-        "surf",
-        os.path.basename(projection),
+    fsaverage_has_been_copied = _fsaverage_was_copied(
+        Path(subjects_dir_backup), subjects_dir
     )
 
-    if not os.path.exists(projection_in_surf_folder):
-        shutil.copy(projection, projection_in_surf_folder)
+    # also copy the mgh file in the surf folder (needed by MRISPreproc)
+    projection_in_surf_folder = subjects_dir / freesurfer_id / "surf" / projection.name
 
-    hemi = os.path.basename(projection)[0:2]
-    out_fsaverage = os.path.abspath(
-        "./fsaverage_fwhm-" + str(fwhm) + "_" + os.path.basename(projection)
+    if not projection_in_surf_folder.exists():
+        copy_file(projection, projection_in_surf_folder)
+
+    out_fsaverage = Path.cwd() / f"fsaverage_fwhm-{fwhm}_{projection.name}"
+
+    _run_mris_preproc_as_standalone_nipype_node(
+        projection, freesurfer_id, fwhm, out_fsaverage
     )
-
-    # Use standalone node
-    fsproj = MRISPreproc()
-    fsproj.inputs.target = "fsaverage"
-    fsproj.inputs.subjects = [freesurfer_id]
-    fsproj.inputs.fwhm = fwhm
-    fsproj.inputs.hemi = hemi
-    fsproj.inputs.surf_measure = os.path.basename(projection)[3:]
-    fsproj.inputs.out_file = out_fsaverage
-    fsproj.run()
 
     # remove projection file from surf folder
-    os.remove(projection_in_surf_folder)
+    projection_in_surf_folder.unlink(missing_ok=False)
 
     # remove fsaverage if it has been copied
     if fsaverage_has_been_copied:
-        shutil.rmtree(os.path.join(os.path.expandvars("$SUBJECTS_DIR"), "fsaverage"))
+        shutil.rmtree(subjects_dir / "fsaverage")
 
     # put back original subjects_dir env
     os.environ["SUBJECTS_DIR"] = subjects_dir_backup
     return out_fsaverage
+
+
+def _run_mris_preproc_as_standalone_nipype_node(
+    projection: Path,
+    freesurfer_id: str,
+    fwhm: float,
+    output_file: Path,
+):
+    from nipype.interfaces.freesurfer import MRISPreproc
+
+    projection_node = MRISPreproc()
+    projection_node.inputs.target = "fsaverage"
+    projection_node.inputs.subjects = [freesurfer_id]
+    projection_node.inputs.fwhm = fwhm
+    projection_node.inputs.hemi = HemiSphere(projection.name[0:2]).value
+    projection_node.inputs.surf_measure = projection.name[3:]
+    projection_node.inputs.out_file = str(output_file)
+    projection_node.run()
 
 
 def _assert_seven_surfaces(surfaces: Sequence[Path]):
