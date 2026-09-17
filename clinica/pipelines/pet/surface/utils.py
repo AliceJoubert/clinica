@@ -7,7 +7,6 @@ from typing import Sequence
 import nibabel as nib
 import numpy as np
 import pandas as pd
-from h5py.h5t import array_create
 
 from clinica.pipelines.utils import FreeSurferAnnotation
 from clinica.utils.filemanip import copy_file, move_file
@@ -37,9 +36,6 @@ __all__ = [
 
 # TODO : check all os.environ / expand var calls or functions
 # TODO : any way to break down that file ?
-# TODO : are pipelines / utils used ?
-# TODO : are all functions well named ?
-# TODO : check redundant imports
 
 
 def _get_longitudinal_folder_name(input_folder: Path) -> str:
@@ -184,7 +180,7 @@ def perform_gtmseg(
 
     # Set back the SUBJECT_DIR environment variable of the user
     os.environ["SUBJECTS_DIR"] = str(subjects_dir_backup)
-    return out_file  # todo : could it be gtmseg_file_path ?
+    return out_file
 
 
 def remove_nan_from_image(image_path: Path) -> Path:
@@ -201,9 +197,6 @@ def remove_nan_from_image(image_path: Path) -> Path:
     output_image_path : Path
         The path to the volume in Nifti that does not contain any NaNs.
     """
-    import nibabel as nib
-    import numpy as np
-
     from clinica.utils.filemanip import get_filename_no_ext
 
     image = nib.load(image_path)
@@ -272,8 +265,6 @@ def _are_almost_equal(a: float, b: float, rel_tol=1e-9, abs_tol=0.0) -> bool:
 
 def _check_sum(control_image_data: np.ndarray):
     """The sum of a voxel location across the fourth dimension should be 1."""
-    # todo : in test do both cases
-    # todo : fourth dimension ? can it be achieved with np.sum ?
     sum_voxel_mean = float(sum(sum(sum(control_image_data)))) / control_image_data.size
     if not _are_almost_equal(1.0, sum_voxel_mean):
         raise ValueError(
@@ -509,7 +500,6 @@ def _build_mris_expand_cmd(in_surface: Path) -> str:
 
 def _get_numbered_exp_filename(filename: Path, number: int) -> Path:
     # Expects a filename like Path.cwd() / lh.white to output Path.cwd() / lh.white_exp-00N
-    # todo : to test
     return filename.with_name(f"{filename.name}_exp-{str(number).zfill(3)}")
 
 
@@ -581,7 +571,7 @@ def _build_mri_surf2surf_command(
 ) -> str:
     hemisphere = HemiSphere(surface.name[0:2])
     surface_name = surface.name[3:]
-    command = f"mri_surf2surf --reg {registration} {gtmsegfile} --sval-xyz {surface_name} --hemi {hemisphere} --tval-xyz {gtmsegfile} --tval {output_file} --s {freesurfer_id}"
+    command = f"mri_surf2surf --reg {registration} {gtmsegfile} --sval-xyz {surface_name} --hemi {hemisphere.value} --tval-xyz {gtmsegfile} --tval {output_file} --s {freesurfer_id}"
 
     # If system is MacOS, this export command must be run just
     # before the mri_vol2surf command to bypass MacOs security.
@@ -645,7 +635,7 @@ def run_mri_surf2surf(
     )
     os.environ["SUBJECTS_DIR"] = str(subject_directory)
 
-    copy_file(surface, subject_directory / freesurfer_id / "surf")
+    copy_file(surface, subject_directory / freesurfer_id / "surf", exist_ok=True)
     output_path = Path.cwd() / f"{surface.name}_gtmsegspace"
     run_command_as_subprocess(
         "mri_surf2surf",
@@ -738,7 +728,7 @@ def run_mri_vol2surf(
     if not gtmsegfile_copy.exists():
         copy_file(gtmsegfile, gtmsegfile_copy)
 
-    # TODO write nicer way to grab hemi & filename (difficulty caused by the dots in filenames)
+    # TODO write nicer way to grab hemi (difficulty caused by the dots in filenames)
     # extract hemisphere based on filename
     hemisphere = HemiSphere(surface.name[0:2])
     output_file = Path.cwd() / f"{hemisphere.value}.projection_{surface.name}.mgh"
@@ -970,8 +960,6 @@ def compute_average_pet_signal_based_on_annotations(
     ValueError :
         If not exactly two files were provided through the argument 'pet_projections'.
     """
-
-    from clinica.pipelines.utils import FreeSurferAnnotation
     from clinica.utils.stream import log_and_raise
 
     if len(pet_projections) != 2:
@@ -1026,6 +1014,9 @@ def compute_average_pet_signal_based_on_annotations(
 
 
 def merge_nifti_volumes(inputs: list[str]) -> str:
+    import os
+
+    import nibabel as nib
     from nilearn.image import concat_imgs
 
     sorted_inputs = sorted(

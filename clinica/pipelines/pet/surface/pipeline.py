@@ -274,7 +274,8 @@ class PetSurface(PETPipeline):
 
         import nipype.interfaces.utility as niu
         import nipype.pipeline.engine as npe
-        from pipelines.pet.surface.workflows import get_wf
+
+        from clinica.pipelines.pet.surface.workflows import get_wf
 
         full_pipe = npe.MapNode(
             niu.Function(
@@ -331,25 +332,29 @@ class PetSurface(PETPipeline):
                 os.path.dirname(os.path.realpath(__file__)),
                 "..",
                 "..",
+                "..",
                 "resources",
                 "label_conversion_gtmsegmentation.csv",
             )
         )
         full_pipe.inputs.is_longitudinal = self.parameters["longitudinal"]
 
-        # Connection
-        # ==========
-        # fmt: off
         self.connect(
             [
-                (self.input_node, full_pipe, [("pet", "pet"),
-                                              ("white_surface_left", "white_surface_left"),
-                                              ("white_surface_right", "white_surface_right"),
-                                              ("orig_nu", "orig_nu"),
-                                              ("destrieux_left", "destrieux_left"),
-                                              ("destrieux_right", "destrieux_right"),
-                                              ("desikan_left", "desikan_left"),
-                                              ("desikan_right", "desikan_right")])
+                (
+                    self.input_node,
+                    full_pipe,
+                    [
+                        ("pet", "pet"),
+                        ("white_surface_left", "white_surface_left"),
+                        ("white_surface_right", "white_surface_right"),
+                        ("orig_nu", "orig_nu"),
+                        ("destrieux_left", "destrieux_left"),
+                        ("destrieux_right", "destrieux_right"),
+                        ("desikan_left", "desikan_left"),
+                        ("desikan_right", "desikan_right"),
+                    ],
+                )
             ]
         )
         # fmt: off

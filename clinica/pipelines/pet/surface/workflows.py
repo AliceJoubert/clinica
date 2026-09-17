@@ -1,6 +1,3 @@
-# todo consider adding a output_dir = None default (to propagate in downstream functions)
-
-
 def get_wf(
     subject_id: str,
     session_id: str,
@@ -81,7 +78,8 @@ def get_wf(
     from nipype.interfaces.freesurfer import ApplyVolTransform, MRIConvert, Tkregister2
     from nipype.interfaces.petpvc import PETPVC
     from nipype.interfaces.spm import Coregister, Normalize12
-    from pipelines.pet.surface.tasks import (
+
+    from clinica.pipelines.pet.surface.tasks import (
         compute_average_pet_signal_based_on_annotations_task,
         compute_weighted_mean_surface_task,
         convert_labels_task,
@@ -96,14 +94,13 @@ def get_wf(
         run_mri_vol2surf_task,
         run_mris_expand_task,
     )
-    from pipelines.pet.surface.utils import (
+    from clinica.pipelines.pet.surface.utils import (
         get_output_dir,
         get_regexp_substitutions,
         merge_nifti_volumes,
     )
-    from pipelines.utils import FreeSurferAnnotation
-
     from clinica.pipelines.pet.utils import get_suvr_mask, read_psf_information
+    from clinica.pipelines.utils import FreeSurferAnnotation
     from clinica.utils.filemanip import get_subject_id, load_volume, unzip_nii
     from clinica.utils.pet import (
         SUVRReferenceRegion,
@@ -171,16 +168,16 @@ def get_wf(
 
     labelconversion = pe.Node(
         niu.Function(
-            input_names=["gtmsegfile", "csv"],
+            input_names=["gtmseg_file", "csv_file"],
             output_names=["list_of_regions"],
             function=convert_labels_task,
         ),
         name="conversion_of_labels",
     )
 
-    labelconversion.inputs.csv = csv_segmentation
+    labelconversion.inputs.csv_file = csv_segmentation
 
-    if not os.path.exists(labelconversion.inputs.csv):
+    if not os.path.exists(labelconversion.inputs.csv_file):
         raise Exception("CSV file : " + labelconversion.inputs.csv + " does not exist.")
 
     merge_volume = pe.Node(
@@ -214,7 +211,7 @@ def get_wf(
 
     apply_inverse_deformation = pe.Node(
         niu.Function(
-            input_names=["target", "deformation_field", "img"],
+            input_names=["target_image", "deformation_field", "image"],
             output_names=["freesurfer_space_eroded_mask"],
             function=run_apply_inverse_deformation_field_SPM_standalone_task,
         ),
@@ -277,7 +274,7 @@ def get_wf(
             function=run_mri_surf2surf_task,
         ),
         name="surf_conversion",
-        iterfield=["in_surface"],
+        iterfield=["surface"],
     )
     surf_conversion.inputs.subject_id = subject_id
     surf_conversion.inputs.session_id = session_id
@@ -292,7 +289,7 @@ def get_wf(
                 "subject_id",
                 "session_id",
                 "caps_dir",
-                "gtmsegfile",
+                "gtmseg_file",
                 "is_longitudinal",
             ],
             output_names=["output"],
@@ -431,9 +428,9 @@ def get_wf(
             (removenan, vol2vol, [("vol_wo_nan", "source_file")]),
             (inputnode, tkregister, [("orig_nu", "target_image")]),
             (unzip_orig_nu, normalize12, [("out_file", "image_to_align")]),
-            (unzip_mask, apply_inverse_deformation, [("out_file", "img")]),
+            (unzip_mask, apply_inverse_deformation, [("out_file", "image")]),
             (normalize12, apply_inverse_deformation, [("deformation_field", "deformation_field")]),
-            (unzip_orig_nu, apply_inverse_deformation, [("out_file", "target")]),
+            (unzip_orig_nu, apply_inverse_deformation, [("out_file", "target_image")]),
             (apply_inverse_deformation, vol2vol_mask, [("freesurfer_space_eroded_mask", "source_file")]),
             (gtmsegmentation, vol2vol_mask, [("gtmseg_file", "target_file")]),
             (gtmsegmentation, tkregister, [("gtmseg_file", "moving_image")]),
@@ -441,7 +438,7 @@ def get_wf(
             (gtmsegmentation, vol2vol, [("gtmseg_file", "target_file")]),
             (vol2vol, pons_normalization, [("transformed_file", "pet_image")]),
             (vol2vol_mask, pons_normalization, [("transformed_file", "mask")]),
-            (convert_gtmseg, labelconversion, [("out_file", "gtmsegfile")]),
+            (convert_gtmseg, labelconversion, [("out_file", "gtmseg_file")]),
             (labelconversion, merge_volume, [("list_of_regions", "inputs")]),
             (merge_volume, pvc, [("merged_file", "mask_file")]),
             (pons_normalization, pvc, [("suvr_image", "in_file")]),

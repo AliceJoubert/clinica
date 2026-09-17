@@ -1,4 +1,4 @@
-# todo : unused functions
+"""Adaptators of utils for nipype interface. Wraps utils to simpler types."""
 
 
 def remove_nan_from_image_task(image_path: str) -> str:
@@ -112,7 +112,7 @@ def run_mri_vol2surf_task(
     subject_id: str,
     session_id: str,
     caps_dir: str,
-    gtmsegfile: str,
+    gtmseg_file: str,
     is_longitudinal: bool,
 ) -> str:
     from pathlib import Path
@@ -126,7 +126,7 @@ def run_mri_vol2surf_task(
             subject_id,
             session_id,
             Path(caps_dir),
-            Path(gtmsegfile),
+            Path(gtmseg_file),
             is_longitudinal,
         )
     )
