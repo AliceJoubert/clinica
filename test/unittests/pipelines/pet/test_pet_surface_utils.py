@@ -27,7 +27,7 @@ def test_build_mris_expand_cmd(tmp_path, platform):
     with mock.patch.object(sys, "platform", platform):
         result = _build_mris_expand_cmd(in_surface)
         assert f"mris_expand -thickness -N 13 {in_surface} 0.65 lh.white_exp-" in result
-        if platform == "darwin":
+        if platform.startswith("darwin"):
             assert "export" in result
 
 
