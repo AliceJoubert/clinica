@@ -2,15 +2,6 @@ from clinica.pipelines.utils import FreeSurferAnnotationImage
 from clinica.utils.image import HemiSphere
 
 
-def reformat_surfname(
-    hemisphere: HemiSphere, left_surface: Path, right_surface: Path
-) -> Path:
-    if hemisphere == HemiSphere.LEFT:
-        return left_surface
-    if hemisphere == HemiSphere.RIGHT:
-        return right_surface
-
-
 def compute_average_pet_signal_based_on_annotations(
     pet_projections: Tuple[Path, Path],
     atlas_files: Dict[str, FreeSurferAnnotationImage],

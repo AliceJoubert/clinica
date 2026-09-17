@@ -934,14 +934,13 @@ def get_mid_surface(surfaces: Sequence[Path]) -> Path:
     return surfaces[3]
 
 
-def reformat_surfname(hemi, left_surface, right_surface):
-    if hemi == "lh":
+def reformat_surfname(
+    hemisphere: HemiSphere, left_surface: Path, right_surface: Path
+) -> Path:
+    if hemisphere == HemiSphere.LEFT:
         return left_surface
-    if hemi == "rh":
+    if hemisphere == HemiSphere.RIGHT:
         return right_surface
-    raise ValueError(
-        f"First input of this reformat_surfname function must be either lh or rh. Here it is : {hemi}"
-    )
 
 
 def compute_average_pet_signal_based_on_annotations(pet: list[Path], atlas_files: dict):
