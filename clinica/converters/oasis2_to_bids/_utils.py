@@ -13,6 +13,7 @@ __all__ = [
     "intersect_data",
     "split_clinical_data",
     "populate_bids_with_info",
+    "convert_analyze_to_nifti",
 ]
 
 """
@@ -315,7 +316,7 @@ def _build_scans_df(df_merged: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 
-def _convert_analyze_to_nifti(source_path: Path, target_path: Path) -> None:
+def convert_analyze_to_nifti(source_path: Path, target_path: Path) -> None:
     """Convert an ANALYZE 7.5 .img/.hdr pair to a compressed NIfTI file.
 
     Some OASIS-2 ANALYZE files are stored as 4D arrays with a dummy

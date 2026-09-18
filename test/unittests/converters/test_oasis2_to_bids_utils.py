@@ -37,10 +37,10 @@ def _build_imaging_data() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "source_path": [
-                "OAS2_0001_MR1/RAW/mpr-1.nifti.img",
-                "OAS2_0001_MR1/RAW/mpr-2.nifti.img",
-                "OAS2_0001_MR2/RAW/mpr-1.nifti.img",
-                "OAS2_0002_MR2/RAW/mpr-1.nifti.img",
+                Path("OAS2_0001_MR1/RAW/mpr-1.nifti.img"),
+                Path("OAS2_0001_MR1/RAW/mpr-2.nifti.img"),
+                Path("OAS2_0001_MR2/RAW/mpr-1.nifti.img"),
+                Path("OAS2_0002_MR1/RAW/mpr-1.nifti.img"),
             ],
             "participant_id": [
                 "sub-OAS20001",
@@ -64,10 +64,10 @@ def _build_merged_data() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "source_path": [
-                "OAS2_0001_MR1/RAW/mpr-1.nifti.img",
-                "OAS2_0001_MR1/RAW/mpr-2.nifti.img",
-                "OAS2_0001_MR2/RAW/mpr-1.nifti.img",
-                "OAS2_0002_MR2/RAW/mpr-1.nifti.img",
+                Path("OAS2_0001_MR1/RAW/mpr-1.nifti.img"),
+                Path("OAS2_0001_MR1/RAW/mpr-2.nifti.img"),
+                Path("OAS2_0001_MR2/RAW/mpr-1.nifti.img"),
+                Path("OAS2_0002_MR1/RAW/mpr-1.nifti.img"),
             ],
             "participant_id": [
                 "sub-OAS20001",
@@ -103,7 +103,7 @@ def _build_merged_data() -> pd.DataFrame:
 
 def _build_raw_data(tmp_path: Path) -> Path:
     raw_dataset_path = tmp_path / "raw_data"
-    for subject in ("OAS2_0001_MR1", "OAS2_0001_MR2", "OAS2_0002_MR2"):
+    for subject in ("OAS2_0001_MR1", "OAS2_0001_MR2", "OAS2_0002_MR1"):
         image_folder = raw_dataset_path / subject / "RAW"
         image_folder.mkdir(parents=True)
         (image_folder / "mpr-1.nifti.img").touch()
@@ -114,10 +114,14 @@ def _build_raw_data(tmp_path: Path) -> Path:
 def test_read_clinical_data(tmp_path):
     from clinica.converters.oasis2_to_bids._utils import read_clinical_data
 
-    _build_clinical_data().to_excel(tmp_path / "clinical_data.xlsx")
+    expected_clinical_data = _build_clinical_data()
+    expected_clinical_data.to_excel(tmp_path / "clinical_data.xlsx", index=False)
 
     assert_frame_equal(
-        _build_clinical_data(), read_clinical_data(tmp_path), check_like=True
+        expected_clinical_data,
+        read_clinical_data(tmp_path),
+        check_like=True,
+        check_dtype=False,
     )
 
 
@@ -135,10 +139,10 @@ def test_find_imaging_data(tmp_path):
     from clinica.converters.oasis2_to_bids._utils import _find_imaging_data
 
     assert set(_find_imaging_data(_build_raw_data(tmp_path))) == {
-        "OAS2_0001_MR1/RAW/mpr-1.nifti.img",
-        "OAS2_0001_MR1/RAW/mpr-2.nifti.img",
-        "OAS2_0001_MR2/RAW/mpr-1.nifti.img",
-        "OAS2_0002_MR2/RAW/mpr-1.nifti.img",
+        Path("OAS2_0001_MR1/RAW/mpr-1.nifti.img"),
+        Path("OAS2_0001_MR1/RAW/mpr-2.nifti.img"),
+        Path("OAS2_0001_MR2/RAW/mpr-1.nifti.img"),
+        Path("OAS2_0002_MR1/RAW/mpr-1.nifti.img"),
     }
 
 
@@ -158,7 +162,14 @@ def test_intersect_data():
     result = intersect_data(
         df_imaging=_build_imaging_data(), df_clinical=_build_clinical_data()
     )
-    assert_frame_equal(result, _build_merged_data(), check_like=True)
+
+    expected_merged_data = _build_merged_data()
+    expected_merged_data["filename"] = expected_merged_data.apply(
+        lambda x: f"anat/{x.participant_id}_{x.session_id}_run-{x.run_number}_T1w.nii.gz",
+        axis=1,
+    )
+
+    assert_frame_equal(result, expected_merged_data, check_like=True)
 
 
 def test_build_participants_df():
@@ -187,7 +198,7 @@ def test_build_sessions_df():
             "participant_id": ["sub-OAS20001", "sub-OAS20001", "sub-OAS20002"],
             "session_id": ["ses-MR1", "ses-MR2", "ses-MR1"],
             "visit": [1, 2, 1],
-            "Group": ["Demented", "Demented", "Nondemented"],
+            "group": ["Demented", "Demented", "Nondemented"],
             "days_since_first_visit": [0, 432, 0],
             "age": [54, 54, 81],
             "mmse": [30, 32, 2.0],

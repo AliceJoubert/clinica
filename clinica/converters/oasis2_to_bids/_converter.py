@@ -61,6 +61,7 @@ def convert(
     )
     from ..factory import get_converter_name
     from ._utils import (
+        convert_analyze_to_nifti,
         intersect_data,
         populate_bids_with_info,
         read_clinical_data,
@@ -125,7 +126,7 @@ def convert(
     populate_bids_with_info(bids_dataset, participants, sessions, scans)
 
     for image in bids_dataset.all_images():
-        copy2(
+        convert_analyze_to_nifti(
             path_to_dataset / image.scan_info["source_path"],
             image.get_nifti_image_path(),
         )
