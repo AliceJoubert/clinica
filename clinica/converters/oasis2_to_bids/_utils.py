@@ -174,7 +174,6 @@ def _find_imaging_data(path_to_source_data: Path) -> Iterable[Path]:
     Files follow the naming convention: mpr-N.nifti.img
     e.g. mpr-1.nifti.img, mpr-2.nifti.img, ...
     """
-    # todo : test
     for image in path_to_source_data.rglob("OAS2_*_MR*/RAW/mpr-*.img"):
         yield image.relative_to(path_to_source_data)
 
@@ -188,7 +187,6 @@ def _identify_run(image_file_name: str) -> str:
     ``mpr-4.nifti.img``  ->  ``04``
     """
     import re
-    # todo : test
 
     match = re.search(r"mpr-(\d+)", image_file_name)
     return f"{int(match.group(1)):02d}" if match else "01"
@@ -234,19 +232,6 @@ def intersect_data(
             axis=1,
         )
     )
-
-    # Per-subject baseline record (earliest session) -> participants.tsv
-    df_subjects = (
-        df_clinical.sort_values("MRI ID")
-        .drop_duplicates(subset=["Subject ID"], keep="first")[
-            ["Subject ID", "M/F", "Hand", "EDUC", "SES"]
-        ]
-        .copy()
-    )
-    df_subjects["participant_id"] = df_subjects["Subject ID"].apply(
-        lambda x: OASIS2BIDSSubjectID.from_original_study_id(x)
-    )
-
     return df_merged
 
 
@@ -373,7 +358,7 @@ def populate_bids_with_info(
     participants: pd.DataFrame,
     sessions: pd.DataFrame,
     scans: pd.DataFrame,
-):
+) -> None:
     """
         Populates the BIDSDataset structure with information from participants, sessions and scans.
     After being applied each image is described and thus accessible without having to loop over each
@@ -388,10 +373,6 @@ def populate_bids_with_info(
         Contains information that should go into sessions.tsv. Indexed on participants and sessions.
     scans : pd.DataFrame
         Contains information that should go into scans.tsv. Indexed on participants and sessions.
-
-    Returns
-    -------
-
     """
     # todo : chance that this would be useful for several datasets
     from clinicaio import DataType, FileExtension, ImageScanInfo
