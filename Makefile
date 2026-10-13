@@ -2,11 +2,21 @@ PACKAGES := clinica test
 POETRY ?= poetry
 CONDA ?= conda
 CONDA_ENV ?= "./env"
+DOCKER ?= docker
 
 .PHONY: help
 help: Makefile
 	@echo "Commands:"
 	@sed -n 's/^##//p' $<
+
+# image : build docker images
+.PHONY: image
+image: Makefile
+	@$(DOCKER) buildx bake -f ./docker/docker-bake-targets.hcl -f ./docker/vars.hcl $(target)
+
+.PHONY: image.print
+image.print: Makefile
+	@$(DOCKER) buildx bake -f ./docker/docker-bake-targets.hcl -f ./docker/vars.hcl $(target) --print
 
 .PHONY: check.lock
 check.lock:

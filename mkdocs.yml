@@ -88,6 +88,7 @@ nav:
   - Setting-up for Clinica:
     - Installation: Software/Installation.md
     - Third-party software: Software/Third-party.md
+    - Clinica & Docker : Software/docker.md
     - Interacting with Clinica: Software/InteractingWithClinica.md
     - Contributing to Clinica : Software/contributing.md
   - Clinica environment:
